@@ -3,9 +3,10 @@ import { Button } from "../ui/button";
 
 interface IdTypeSelectionProps {
     onSelect: (idType: IdType) => void;
+    onBack?: () => void;
 }
 
-export const IdTypeSelection = ({ onSelect }: IdTypeSelectionProps) => {
+export const IdTypeSelection = ({ onSelect, onBack }: IdTypeSelectionProps) => {
     return (
         <div className="flex flex-col flex-1 p-6">
             <div className="mb-6">
@@ -30,6 +31,18 @@ export const IdTypeSelection = ({ onSelect }: IdTypeSelectionProps) => {
                     </Button>
                 ))}
             </div>
+
+            {onBack && (
+                <div className="mt-4">
+                    <Button
+                        onClick={onBack}
+                        variant="outline"
+                        className="w-full"
+                    >
+                        Back to Verify Page
+                    </Button>
+                </div>
+            )}
         </div>
     );
 };

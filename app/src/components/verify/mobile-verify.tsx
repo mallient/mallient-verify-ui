@@ -102,7 +102,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
     const renderStep = () => {
         switch (state.step) {
             case "select_id_type":
-                return <IdTypeSelection onSelect={handleIdTypeSelect} />;
+                return <IdTypeSelection onSelect={handleIdTypeSelect} onBack={handleCancel} />;
 
             case "scan_front":
                 if (subStep === "instruction") {
