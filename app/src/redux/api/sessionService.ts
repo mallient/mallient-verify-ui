@@ -65,6 +65,9 @@ export class SessionService extends BaseService {
                         supportEmail: 'support@testbank.com',
                         privacyPolicyUrl: 'https://example.com/privacy',
                         termsOfServiceUrl: 'https://example.com/terms',
+                        urlRedirectOnComplete: 'https://example.com/verification-complete',
+                        urlRedirectOnError: 'https://example.com/verification-error',
+                        urlRedirectOnMobileContinue: 'https://example.com/verification-continue',
                     },
                 });
             }, 500); // Simulate network delay
