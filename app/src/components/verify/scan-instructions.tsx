@@ -70,7 +70,7 @@ export const ScanInstruction = ({
             <div className="flex flex-col gap-3 w-full max-w-xs">
                 <Button
                     onClick={onContinue}
-                    variant={'outline'}
+                    variant={'default'}
                     >
                     Start Scanning
                 </Button>
@@ -139,7 +139,7 @@ export const FlipIdTransition = ({ onContinue }: TransitionScreenProps) => {
 
             <Button
                 onClick={onContinue}
-                variant={'outline'}
+                variant={'default'}
             >
                 Scan Back of ID
             </Button>
@@ -185,7 +185,7 @@ export const SelfieTransition = ({ onContinue }: TransitionScreenProps) => {
 
             <Button
                 onClick={onContinue}
-                variant={'outline'}
+                variant={'default'}
             >
                 Take Selfie
             </Button>
