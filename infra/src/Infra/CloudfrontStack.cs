@@ -15,9 +15,9 @@ namespace Infra
         internal CloudfrontStack(Construct scope, string id, string envName, IStackProps props = null)
             : base(scope, id, envName, props)
         {
-            var siteBucket = new Bucket(this, $"MCSiteBucket-{envName}", new BucketProps
+            var siteBucket = new Bucket(this, $"MVSiteBucket-{envName}", new BucketProps
             {
-                BucketName = $"mallient-concierge-ui-bucket-{envName}",
+                BucketName = $"mallient-verify-ui-bucket-{envName}",
                 PublicReadAccess = false,
                 RemovalPolicy = RemovalPolicy.DESTROY,
                 AutoDeleteObjects = true,
