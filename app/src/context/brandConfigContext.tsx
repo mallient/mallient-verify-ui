@@ -44,6 +44,9 @@ export function BrandConfigProvider({ children }: BrandConfigProviderProps) {
           supportEmail: response.brandConfig.supportEmail || DEFAULT_BRAND_CONFIG.supportEmail,
           privacyPolicyUrl: response.brandConfig.privacyPolicyUrl || DEFAULT_BRAND_CONFIG.privacyPolicyUrl,
           termsOfServiceUrl: response.brandConfig.termsOfServiceUrl || DEFAULT_BRAND_CONFIG.termsOfServiceUrl,
+          urlRedirectOnComplete: response.brandConfig.urlRedirectOnComplete || DEFAULT_BRAND_CONFIG.urlRedirectOnComplete,
+          urlRedirectOnError: response.brandConfig.urlRedirectOnError || DEFAULT_BRAND_CONFIG.urlRedirectOnError,
+          urlRedirectOnMobileContinue: response.brandConfig.urlRedirectOnMobileContinue || DEFAULT_BRAND_CONFIG.urlRedirectOnMobileContinue,
         };
         
         setBrandConfig(mergedConfig);
