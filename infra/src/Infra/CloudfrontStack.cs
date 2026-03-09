@@ -34,44 +34,44 @@ namespace Infra
                 Comment = $"OAI for {envName}"
             });
 
-            //var distribution = new Distribution(this, $"MCSiteDistribution-{envName}", new DistributionProps
-            //{
-            //    DefaultRootObject = "index.html",
-            //    DefaultBehavior = new BehaviorOptions
-            //    {
-            //        Origin = new S3Origin(siteBucket, new S3OriginProps
-            //        {
-            //            OriginAccessIdentity = oai
-            //        }),
-            //        ViewerProtocolPolicy = ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-            //        AllowedMethods = AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-            //        CachedMethods = CachedMethods.CACHE_GET_HEAD_OPTIONS
-            //    },
-            //    ErrorResponses = new IErrorResponse[]
-            //    {
-            //        new ErrorResponse
-            //        {
-            //            HttpStatus = 403,
-            //            ResponseHttpStatus = 200,
-            //            ResponsePagePath = "/index.html",
-            //            Ttl = Duration.Seconds(0)
-            //        },
-            //        new ErrorResponse
-            //        {
-            //            HttpStatus = 404,
-            //            ResponseHttpStatus = 200,
-            //            ResponsePagePath = "/index.html",
-            //            Ttl = Duration.Seconds(0)
-            //        }
-            //    }
-            //});
+            var distribution = new Distribution(this, $"MCSiteDistribution-{envName}", new DistributionProps
+            {
+                DefaultRootObject = "index.html",
+                DefaultBehavior = new BehaviorOptions
+                {
+                    Origin = new S3Origin(siteBucket, new S3OriginProps
+                    {
+                        OriginAccessIdentity = oai
+                    }),
+                    ViewerProtocolPolicy = ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    AllowedMethods = AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+                    CachedMethods = CachedMethods.CACHE_GET_HEAD_OPTIONS
+                },
+                ErrorResponses = new IErrorResponse[]
+                {
+                    new ErrorResponse
+                    {
+                        HttpStatus = 403,
+                        ResponseHttpStatus = 200,
+                        ResponsePagePath = "/index.html",
+                        Ttl = Duration.Seconds(0)
+                    },
+                    new ErrorResponse
+                    {
+                        HttpStatus = 404,
+                        ResponseHttpStatus = 200,
+                        ResponsePagePath = "/index.html",
+                        Ttl = Duration.Seconds(0)
+                    }
+                }
+            });
 
             new BucketDeployment(this, $"MCDeployReactApp-{envName}", new BucketDeploymentProps
             {
                 Sources = new[] { Source.Asset("../app/dist") },
                 DestinationBucket = siteBucket,
-                //Distribution = distribution,
-                //DistributionPaths = new[] { "/*" }
+                Distribution = distribution,
+                DistributionPaths = new[] { "/*" }
             });
 
             //new CfnOutput(this, $"MCCloudFrontURL-{envName}", new CfnOutputProps
