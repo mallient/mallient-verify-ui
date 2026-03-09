@@ -71,7 +71,7 @@ namespace Infra
                 Sources = new[] { Source.Asset("../app/dist") },
                 DestinationBucket = siteBucket,
                 //Distribution = distribution,
-                DistributionPaths = new[] { "/*" }
+                //DistributionPaths = new[] { "/*" }
             });
 
             //new CfnOutput(this, $"MCCloudFrontURL-{envName}", new CfnOutputProps
