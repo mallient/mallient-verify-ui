@@ -9,10 +9,10 @@ function App() {
     <>
       <div className="min-h-screen flex flex-col">
         <ThemeProvider defaultTheme="system">
-          <Banner />
-          <BrowserRouter>
-            <Routing />
-          </BrowserRouter>
+            <Banner />
+            <BrowserRouter>
+              <Routing />
+            </BrowserRouter>
         </ThemeProvider>
       </div>
     </>

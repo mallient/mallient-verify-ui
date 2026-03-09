@@ -35,14 +35,14 @@ export const CameraCapture = ({
                 };
             case "barcode":
                 return {
-                    width: "70%",
-                    height: "25%",
-                    borderRadius: "8px",
+                    width: "85%",
+                    height: "55%",
+                    borderRadius: "12px",
                 };
             case "selfie":
                 return {
-                    width: "60%",
-                    height: "45%",
+                    width: "90%",
+                    height: "65%",
                     borderRadius: "50%",
                 };
             default:
