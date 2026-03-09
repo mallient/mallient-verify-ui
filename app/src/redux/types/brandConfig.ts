@@ -13,7 +13,7 @@ export interface LogoConfig {
   /** Logo height in pixels or CSS units */
   logoHeight?: string;
   /** Logo placement: header, center, left, right */
-  logoPlacement?: 'header' | 'center' | 'left' | 'right';
+  logoPlacement?: "header" | "center" | "left" | "right";
 }
 
 export interface ColorConfig {
@@ -58,19 +58,19 @@ export interface TypographyConfig {
 
 export interface LayoutConfig {
   /** Banner style: gradient, solid, image */
-  bannerStyle?: 'gradient' | 'solid' | 'image';
+  bannerStyle?: "gradient" | "solid" | "image";
   /** Banner background image URL */
   bannerBackgroundImageUrl?: string;
   /** Banner height */
   bannerHeight?: string;
   /** Banner text alignment */
-  bannerTextAlignment?: 'left' | 'center' | 'right';
+  bannerTextAlignment?: "left" | "center" | "right";
   /** Content max width */
   contentMaxWidth?: string;
   /** Border radius for buttons and cards */
   borderRadius?: string;
   /** Box shadow intensity: none, sm, md, lg */
-  boxShadow?: 'none' | 'sm' | 'md' | 'lg';
+  boxShadow?: "none" | "sm" | "md" | "lg";
 }
 
 export interface TextConfig {
@@ -110,43 +110,43 @@ export interface BrandConfig {
  */
 export const DEFAULT_BRAND_CONFIG: BrandConfig = {
   logo: {
-    logoPlacement: 'header',
-    logoWidth: 'auto',
-    logoHeight: '40px',
+    logoPlacement: "header",
+    logoWidth: "auto",
+    logoHeight: "40px",
   },
   colors: {
-    primaryColor: '#f59e0b', // amber-500
-    secondaryColor: '#3f3f46', // zinc-700
-    accentColor: '#fbbf24', // amber-400
-    backgroundColor: '#18181b', // zinc-900
-    textColor: '#fafafa', // zinc-50
-    borderColor: '#3f3f46', // zinc-700
-    hoverColor: '#f59e0b',
-    buttonTextColor: '#ffffff',
-    buttonBackgroundColor: '#f59e0b',
-    buttonBorderColor: '#f59e0b',
-    outlineButtonTextColor: '#fafafa',
-    outlineButtonBorderColor: '#3f3f46',
-    outlineButtonHoverBgColor: '#27272a',
+    primaryColor: "#f59e0b", // amber-500
+    secondaryColor: "#3f3f46", // zinc-700
+    accentColor: "#fbbf24", // amber-400
+    backgroundColor: "#18181b", // zinc-900
+    textColor: "#fafafa", // zinc-50
+    borderColor: "#3f3f46", // zinc-700
+    hoverColor: "#f59e0b",
+    buttonTextColor: "#ffffff",
+    buttonBackgroundColor: "#f59e0b",
+    buttonBorderColor: "#f59e0b",
+    outlineButtonTextColor: "#fafafa",
+    outlineButtonBorderColor: "#3f3f46",
+    outlineButtonHoverBgColor: "#27272a",
   },
   typography: {
-    fontFamily: 'Inter, system-ui, Avenir, Helvetica, Arial, sans-serif',
-    headingFontFamily: 'Inter, system-ui, Avenir, Helvetica, Arial, sans-serif',
-    baseFontSize: '16px',
-    headingFontWeight: '600',
+    fontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif",
+    headingFontFamily: "Inter, system-ui, Avenir, Helvetica, Arial, sans-serif",
+    baseFontSize: "16px",
+    headingFontWeight: "600",
   },
   layout: {
-    bannerStyle: 'gradient',
-    bannerHeight: '64px',
-    bannerTextAlignment: 'center',
-    contentMaxWidth: '1200px',
-    borderRadius: '0.375rem',
-    boxShadow: 'md',
+    bannerStyle: "gradient",
+    bannerHeight: "64px",
+    bannerTextAlignment: "center",
+    contentMaxWidth: "1200px",
+    borderRadius: "0.375rem",
+    boxShadow: "md",
   },
   text: {
-    appTitle: 'Mallient Verify',
-    welcomeMessage: 'Welcome to Identity Verification',
-    instructionText: 'Please follow the steps to verify your identity',
+    appTitle: "Mallient Verify",
+    welcomeMessage: "Welcome to Identity Verification",
+    instructionText: "Please follow the steps to verify your identity",
   },
 };
 
@@ -158,4 +158,7 @@ export interface SessionResponse {
   sessionToken: string;
   brandConfig: BrandConfig;
   expiresAt?: string;
+  urlRedirectOnComplete: string;
+  urlRedirectOnError: string;
+  urlRedirectOnMobileContinue: string;
 }
