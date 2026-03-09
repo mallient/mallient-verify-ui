@@ -39,7 +39,7 @@ export class SessionService extends BaseService {
                             buttonTextColor: '#ffffff',
                             buttonBackgroundColor: '#f59e0b',
                             buttonBorderColor: '#f59e0b',
-                            outlineButtonTextColor: '#fafafa',
+                            outlineButtonTextColor: '#1a1616',
                             outlineButtonBorderColor: '#3f3f46',
                             outlineButtonHoverBgColor: '#27272a',
                         },
@@ -58,11 +58,11 @@ export class SessionService extends BaseService {
                             boxShadow: 'lg',
                         },
                         text: {
-                            appTitle: 'Mallient Verify',
+                            appTitle: 'Test Bank Verify',
                             
                         },
-                        brandName: 'Mallient',
-                        supportEmail: 'support@mallient.com',
+                        brandName: 'Test Bank',
+                        supportEmail: 'support@testbank.com',
                         privacyPolicyUrl: 'https://example.com/privacy',
                         termsOfServiceUrl: 'https://example.com/terms',
                     },

@@ -213,7 +213,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                         </p>
                         <Button
                             onClick={handleComplete}
-                            variant={'outline'}
+                            variant={'default'}
                            >
                             Continue to Mallient
                         </Button>
