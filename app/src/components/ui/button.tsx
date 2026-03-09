@@ -9,16 +9,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-[var(--color-button-bg,#f59e0b)] text-[var(--color-button-text,#ffffff)] border border-[var(--color-button-border,#f59e0b)] hover:bg-[var(--color-hover,#d97706)] hover:border-[var(--color-hover,#d97706)]",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
-          "border bg-transparent text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground dark:text-zinc-100 dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border bg-transparent text-[var(--color-outline-button-text,#fafafa)] shadow-xs hover:bg-[var(--color-outline-button-hover-bg,#27272a)] hover:text-accent-foreground border-[var(--color-outline-button-border,#3f3f46)]",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-[var(--color-secondary,#3f3f46)] text-secondary-foreground hover:bg-[var(--color-secondary,#3f3f46)]/80",
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-[var(--color-primary,#f59e0b)] underline-offset-4 hover:underline",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -43,6 +43,7 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  style,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
@@ -56,6 +57,10 @@ function Button({
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
+      style={{
+        borderRadius: 'var(--border-radius, 0.375rem)',
+        ...style,
+      }}
       {...props}
     />
   )

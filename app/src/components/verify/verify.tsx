@@ -11,6 +11,7 @@ import {
   getVerificationSession,
 } from "@/lib/verificationService";
 import { MobileVerify } from "./mobile-verify";
+import { useTextConfig, useColorConfig } from "@/context/brandConfigContext";
 
 type VerifyMode = "choose" | "web-verify";
 
@@ -19,10 +20,13 @@ export const Verify = () => {
   const [qrUrl, setQrUrl] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<VerificationSession | null>(null);
-  const [verificationStatus, setVerificationStatus] =
-    useState<VerificationStatus>("pending");
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>("pending");
   const [mode, setMode] = useState<VerifyMode>("choose");
   const navigate = useNavigate();
+  
+  // Get brand configuration
+  const textConfig = useTextConfig();
+  const colorConfig = useColorConfig();
 
   // Check if this is a mobile device accessing via QR code
   const sessionIdFromUrl = searchParams.get("session");
@@ -122,9 +126,11 @@ export const Verify = () => {
     return (
       <div className="flex flex-col flex-1">
         <div className="flex flex-col items-center justify-center flex-1 p-4">
-          <h1 className="text-2xl font-bold mb-2">Let's Begin!</h1>
+          <h1 className="text-2xl font-bold mb-2" style={{ color: colorConfig.primaryColor }}>
+            {textConfig.welcomeMessage || "Let's Begin!"}
+          </h1>
           <p className="text-gray-500 text-center mb-8">
-            Continue to verify your identity.
+            {textConfig.instructionText || "Continue to verify your identity."}
           </p>
           <Button onClick={handleContinueOnMobile} variant={"outline"}>
             Verify My Identity
@@ -168,9 +174,11 @@ export const Verify = () => {
   return (
     <div className="flex flex-col flex-1">
       <div className="flex flex-col items-center justify-center flex-1 p-4">
-        <h1 className="text-2xl font-bold mb-4">Identity Verification</h1>
+        <h1 className="text-2xl font-bold mb-4" style={{ color: colorConfig.primaryColor }}>
+          {textConfig.appTitle || "Identity Verification"}
+        </h1>
         <p className="text-sm text-gray-400 mb-6">
-          Scan the QR code on your phone, or continue on this device.
+          {textConfig.instructionText || "Scan the QR code on your phone, or continue on this device."}
         </p>
         {loading ? (
           <div className="text-gray-500">Setting up your session...</div>
