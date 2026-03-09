@@ -12,6 +12,8 @@ import {
 } from "@/lib/verificationService";
 import { MobileVerify } from "./mobile-verify";
 import { useTextConfig, useColorConfig } from "@/context/brandConfigContext";
+import { SessionService } from "@/redux/api/sessionService";
+import type { BrandConfig } from "@/types/brandConfig";
 
 type VerifyMode = "choose" | "web-verify";
 
@@ -22,9 +24,10 @@ export const Verify = () => {
   const [session, setSession] = useState<VerificationSession | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>("pending");
   const [mode, setMode] = useState<VerifyMode>("choose");
+  const [sessionBrandConfig, setSessionBrandConfig] = useState<BrandConfig | null>(null);
   const navigate = useNavigate();
   
-  // Get brand configuration
+  // Get brand configuration from context (fallback)
   const textConfig = useTextConfig();
   const colorConfig = useColorConfig();
 
@@ -32,6 +35,26 @@ export const Verify = () => {
   const sessionIdFromUrl = searchParams.get("session");
   const tokenFromUrl = searchParams.get("token");
   const isMobileAccess = !!(sessionIdFromUrl && tokenFromUrl);
+
+  // Generate session and get brand configuration
+  useEffect(() => {
+    const fetchSession = async () => {
+      try {
+        // Only generate new session if not accessing via mobile QR code
+        if (!isMobileAccess) {
+          const sessionService = new SessionService('');
+          const sessionResponse = await sessionService.GenerateSession();
+          if (sessionResponse.brandConfig) {
+            setSessionBrandConfig(sessionResponse.brandConfig);
+          }
+        }
+      } catch (error) {
+        console.error("Error generating session:", error);
+      }
+    };
+    
+    fetchSession();
+  }, [isMobileAccess]);
 
   // Initialize verification session
   const initializeSession = useCallback(async () => {
@@ -50,22 +73,28 @@ export const Verify = () => {
           );
           setVerificationStatus("mobile");
           setSession(existingSession);
+          
+          // Fetch brand configuration for this existing session using its sessionId
+          try {
+            const sessionService = new SessionService('');
+            const sessionResponse = await sessionService.GenerateSession(sessionIdFromUrl);
+            if (sessionResponse.brandConfig) {
+              setSessionBrandConfig(sessionResponse.brandConfig);
+            }
+          } catch (error) {
+            console.error("Error fetching brand config for existing session:", error);
+          }
         }
       } else {
         // New visitor: create session and generate QR code
         const newSession = await createVerificationSession();
         setSession(newSession);
 
-        // Build URL with session ID and session token
-        const baseUrl = window.location.origin;
-        const url = `${baseUrl}/verify?session=${encodeURIComponent(newSession.sessionId)}&token=${encodeURIComponent(newSession.sessionToken)}`;
-        setQrUrl(url);
-
         // Subscribe to status changes
         const unsubscribe = subscribeToVerificationStatus(
           newSession.sessionId,
           newSession.sessionToken,
-          (status) => {
+          (status: VerificationStatus) => {
             setVerificationStatus(status);
           },
         );
@@ -78,6 +107,20 @@ export const Verify = () => {
       setLoading(false);
     }
   }, [isMobileAccess, sessionIdFromUrl, tokenFromUrl]);
+
+  // Generate QR URL after session and brand config are available
+  useEffect(() => {
+    if (session && sessionBrandConfig && !isMobileAccess && !qrUrl) {
+      // Build URL with session ID and session token
+      // Use the mobile redirect URL from brand config as the base
+      const baseUrl = sessionBrandConfig.urlRedirectOnMobileContinue 
+        ? sessionBrandConfig.urlRedirectOnMobileContinue.split('?')[0] // Remove any existing query params
+        : window.location.origin + '/verify';
+      
+      const url = `${baseUrl}?session=${encodeURIComponent(session.sessionId)}&token=${encodeURIComponent(session.sessionToken)}`;
+      setQrUrl(url);
+    }
+  }, [session, sessionBrandConfig, isMobileAccess, qrUrl]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -108,14 +151,34 @@ export const Verify = () => {
   };
 
   const handleContinueOnMobile = () => {
-    navigate("/mobile-verify");
+    // Use URL from session config, fallback to default
+    const mobileUrl = sessionBrandConfig?.urlRedirectOnMobileContinue || '/mobile-verify';
+    
+    // Check if it's an external URL
+    if (mobileUrl.startsWith('http://') || mobileUrl.startsWith('https://')) {
+      window.location.href = mobileUrl;
+    } else {
+      navigate(mobileUrl);
+    }
+  };
+
+  const handleComplete = () => {
+    // Use URL from session config, fallback to default
+    const completeUrl = sessionBrandConfig?.urlRedirectOnComplete || '/dashboard';
+    
+    // Check if it's an external URL
+    if (completeUrl.startsWith('http://') || completeUrl.startsWith('https://')) {
+      window.location.href = completeUrl;
+    } else {
+      navigate(completeUrl);
+    }
   };
 
   // Web inline verification flow (no redirect)
   if (mode === "web-verify") {
     return (
       <MobileVerify
-        onComplete={() => navigate("/dashboard")}
+        onComplete={handleComplete}
         onCancel={() => setMode("choose")}
       />
     );

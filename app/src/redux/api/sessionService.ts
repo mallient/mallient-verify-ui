@@ -2,23 +2,25 @@ import BaseService from "./baseService";
 import type { SessionResponse } from "../types/brandConfig";
 
 export class SessionService extends BaseService {
-    public async GenerateSession(): Promise<SessionResponse> {
+    public async GenerateSession(sessionId?: string): Promise<SessionResponse> {
         // TODO: Replace with actual API call when backend is ready
-        // return await BaseService.PostData(`${import.meta.env.VITE_API_BASE_URL}/verification/session`, {});
+        // If sessionId is provided, fetch config for that session
+        // Otherwise, generate new session
+        // return await BaseService.PostData(`${import.meta.env.VITE_API_BASE_URL}/verification/session`, { sessionId });
         
         // Mock response with brand configuration
-        return this.mockGenerateSession();
+        return this.mockGenerateSession(sessionId);
     }
 
     /**
      * Mock session generation with brand configuration
      * This simulates what the backend will return
      */
-    private mockGenerateSession(): Promise<SessionResponse> {
+    private mockGenerateSession(sessionId?: string): Promise<SessionResponse> {
         return new Promise((resolve) => {
             setTimeout(() => {
                 resolve({
-                    sessionId: `session_${Date.now()}`,
+                    sessionId: sessionId || `session_${Date.now()}`,
                     sessionToken: `token_${Math.random().toString(36).substring(7)}`,
                     expiresAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
                     brandConfig: {
@@ -59,7 +61,9 @@ export class SessionService extends BaseService {
                         },
                         text: {
                             appTitle: 'Test Bank Verify',
-                            
+                            tagline: 'Your trusted partner in verification',
+                            welcomeMessage: 'Welcome to Test Bank Verify',
+                            instructionText: 'Please follow the steps to verify your identity',
                         },
                         brandName: 'Test Bank',
                         supportEmail: 'support@testbank.com',
@@ -67,7 +71,7 @@ export class SessionService extends BaseService {
                         termsOfServiceUrl: 'https://example.com/terms',
                         urlRedirectOnComplete: 'https://example.com/verification-complete',
                         urlRedirectOnError: 'https://example.com/verification-error',
-                        urlRedirectOnMobileContinue: 'https://example.com/verification-continue',
+                        urlRedirectOnMobileContinue: 'https://d1xzs9779v7m5f.cloudfront.net/mobile-verify',
                     },
                 });
             }, 500); // Simulate network delay

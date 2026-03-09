@@ -10,6 +10,7 @@ The brand configuration system allows you to customize:
 - **Typography**: Font families, sizes, and weights
 - **Layout**: Banner styles, spacing, border radius, and shadows
 - **Text Content**: Custom titles, taglines, and messaging
+- **Navigation URLs**: Custom redirect URLs for completion, errors, and mobile flow
 
 ## Architecture
 
@@ -17,8 +18,9 @@ The brand configuration system allows you to customize:
 
 1. **Backend Service** → Returns `SessionResponse` with `BrandConfig`
 2. **SessionService** → Fetches configuration (currently mocked)
-3. **BrandConfigProvider** → Makes configuration available via React Context
-4. **Components** → Access configuration via hooks
+3. **BrandConfigProvider** → Makes configuration available via React Context globally
+4. **Verify Component** → Calls GenerateSession on mount and uses URLs for navigation
+5. **Components** → Access configuration via hooks
 
 ### Key Files
 
@@ -157,6 +159,30 @@ interface TextConfig {
 }
 ```
 
+### URL Configuration
+
+The BrandConfig also includes navigation URLs that control where users are redirected:
+
+```typescript
+interface BrandConfig {
+  // ... other properties
+  urlRedirectOnComplete?: string;        // Where to redirect after successful verification
+  urlRedirectOnError?: string;           // Where to redirect on verification error
+  urlRedirectOnMobileContinue?: string;  // Where to redirect when user continues on mobile
+}
+```
+
+**Navigation Behavior:**
+- URLs starting with `http://` or `https://` will use `window.location.href` (full page navigation)
+- Relative URLs (e.g., `/dashboard`, `/error`) will use React Router's `navigate()` function
+- If not provided, defaults to:
+  - `urlRedirectOnComplete`: `/dashboard`
+  - `urlRedirectOnError`: `/error`
+  - `urlRedirectOnMobileContinue`: `/mobile-verify`
+
+**Usage in Verify Component:**
+The Verify component automatically calls `SessionService.GenerateSession()` on mount and uses these URLs for navigation throughout the verification flow.
+
 ## Mocked Response Examples
 
 ### Example 1: Corporate Blue Theme
@@ -203,7 +229,10 @@ interface TextConfig {
       welcomeMessage: "Welcome to our verification system"
     },
     brandName: "Corporate Inc.",
-    supportEmail: "support@corporate.com"
+    supportEmail: "support@corporate.com",
+    urlRedirectOnComplete: "https://corporate.com/dashboard",
+    urlRedirectOnError: "https://corporate.com/error",
+    urlRedirectOnMobileContinue: "https://corporate.com/mobile-verify"
   }
 }
 ```

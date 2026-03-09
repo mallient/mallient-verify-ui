@@ -74,12 +74,12 @@ namespace Infra
                 DistributionPaths = new[] { "/*" }
             });
 
-            //new CfnOutput(this, $"MCCloudFrontURL-{envName}", new CfnOutputProps
-            //{
-            //    Value = $"https://{distribution.DomainName}",
-            //    Description = $"The CloudFront distribution URL for {envName}",
-            //    ExportName = $"MCCloudFrontURL-{envName}"
-            //});
+            new CfnOutput(this, $"MCCloudFrontURL-{envName}", new CfnOutputProps
+            {
+                Value = $"https://{distribution.DomainName}",
+                Description = $"The CloudFront distribution URL for {envName}",
+                ExportName = $"MCCloudFrontURL-{envName}"
+            });
         }
     }
 }
