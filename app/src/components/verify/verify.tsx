@@ -132,7 +132,7 @@ export const Verify = () => {
           <p className="text-gray-500 text-center mb-8">
             {textConfig.instructionText || "Continue to verify your identity."}
           </p>
-          <Button onClick={handleContinueOnMobile} variant={"outline"}>
+          <Button onClick={handleContinueOnMobile} variant={"default"}>
             Verify My Identity
           </Button>
         </div>
@@ -200,7 +200,7 @@ export const Verify = () => {
 
         <div className="mt-8 flex flex-col items-center">
           <p className="text-sm text-gray-400 mb-2">Or</p>
-          <Button onClick={handleContinueOnWeb} variant={"outline"}>
+          <Button onClick={handleContinueOnWeb} variant={"default"}>
             Continue on this device
           </Button>
         </div>

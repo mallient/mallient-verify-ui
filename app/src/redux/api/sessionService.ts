@@ -23,7 +23,7 @@ export class SessionService extends BaseService {
                     expiresAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
                     brandConfig: {
                         logo: {
-                            primaryLogoUrl: 'https://via.placeholder.com/150x50/f59e0b/ffffff?text=Your+Logo',
+                            primaryLogoUrl: 'https://dnmmf3ubeuub9.cloudfront.net/Logos/mallient-gold.png',
                             logoPlacement: 'header',
                             logoWidth: '150px',
                             logoHeight: '50px',
@@ -59,9 +59,7 @@ export class SessionService extends BaseService {
                         },
                         text: {
                             appTitle: 'Mallient Verify',
-                            tagline: 'Secure Identity Verification',
-                            welcomeMessage: 'Welcome! Let\'s verify your identity',
-                            instructionText: 'Please follow the steps below to complete verification',
+                            
                         },
                         brandName: 'Mallient',
                         supportEmail: 'support@mallient.com',
