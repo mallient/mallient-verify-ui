@@ -22,6 +22,7 @@ export const Verify = () => {
     sessionId,
     sessionToken,
     sessionStatus,
+    currentStep,
     isLoading,
     isMobileAccess,
     urlRedirectOnComplete,
@@ -45,7 +46,7 @@ export const Verify = () => {
   // React to SESSION_COMPLETED event — redirect desktop to the complete URL
   useEffect(() => {
     if (lastEvent?.type === 'SESSION_COMPLETED') {
-      const redirectUrl = lastEvent.data?.redirectUrl as string | undefined;
+      const redirectUrl = lastEvent.type === 'SESSION_COMPLETED' ? lastEvent.redirectUrl : undefined;
       const target = redirectUrl || urlRedirectOnComplete;
       if (target.startsWith('http://') || target.startsWith('https://')) {
         window.location.href = target;
@@ -106,13 +107,17 @@ export const Verify = () => {
   }
 
   // Web view - session transferred to mobile device
-  if (sessionStatus === 'active' && !isMobileAccess) {
+  if ((sessionStatus === 'active' || sessionStatus === 'in_progress') && !isMobileAccess) {
+    const stepLabel = currentStep
+      ? currentStep.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      : null;
+
     return (
       <div className="flex flex-col flex-1">
         <div className="flex flex-col items-center justify-center flex-1 p-4">
-          <div className="bg-green-500/10 border border-green-500 rounded-full p-6 mb-6">
+          <div className="bg-amber-500/10 border border-amber-500 rounded-full p-6 mb-6 animate-pulse">
             <svg
-              className="w-16 h-16 text-green-500"
+              className="w-16 h-16 text-amber-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -125,11 +130,23 @@ export const Verify = () => {
               />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold mb-2">Verified on Mobile</h1>
-          <p className="text-gray-500 text-center max-w-md">
-            The session has been verified on your mobile device. You can
-            continue there or close this window.
+          <h1 className="text-2xl font-bold mb-2" style={{ color: colorConfig.primaryColor }}>
+            {sessionStatus === 'in_progress' ? 'Verification In Progress' : 'Transferred to Mobile'}
+          </h1>
+          <p className="text-gray-500 text-center max-w-md mb-4">
+            {sessionStatus === 'in_progress'
+              ? 'Your identity is being verified on your mobile device. Please complete the steps there.'
+              : 'The session has been transferred to your mobile device. Please continue verification on your phone.'}
           </p>
+          {stepLabel && (
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span>Current step: {stepLabel}</span>
+            </div>
+          )}
         </div>
       </div>
     );

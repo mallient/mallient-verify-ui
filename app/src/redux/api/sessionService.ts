@@ -12,9 +12,7 @@ import type {
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 export class SessionService extends BaseService {
-    /**
-     * POST v1/sessions — Create a new session
-     */
+
     public async createSession(domain: string): Promise<SessionResponse> {
         const body: SessionRequest = { domain };
         const response: IBaseResult<SessionResponse> = await BaseService.PostData(
@@ -24,9 +22,6 @@ export class SessionService extends BaseService {
         return response.result;
     }
 
-    /**
-     * GET v1/sessions/{sessionId} — Get session by ID
-     */
     public async getSession(sessionId: string): Promise<SessionResponse> {
         const response: IBaseResult<SessionResponse> = await BaseService.GetData(
             `${API_BASE}/accounts/v1/sessions/${encodeURIComponent(sessionId)}`,
@@ -34,9 +29,6 @@ export class SessionService extends BaseService {
         return response.result;
     }
 
-    /**
-     * PATCH v1/sessions/{sessionId} — Update session
-     */
     public async updateSession(sessionId: string, request: SessionRequest): Promise<SessionResponse> {
         const response: IBaseResult<SessionResponse> = await BaseService.PatchData(
             `${API_BASE}/accounts/v1/sessions/${encodeURIComponent(sessionId)}`,
@@ -45,16 +37,12 @@ export class SessionService extends BaseService {
         return response.result;
     }
 
-    /**
-     * DELETE v1/sessions/{sessionId} — End session
-     */
     public async endSession(sessionId: string): Promise<void> {
-        await BaseService.DeleteData(`${API_BASE}/accounts/v1/sessions/${encodeURIComponent(sessionId)}`);
+        await BaseService.DeleteData(
+            `${API_BASE}/accounts/v1/sessions/${encodeURIComponent(sessionId)}`
+        );
     }
 
-    /**
-     * POST v1/sessions/{sessionId}/transfer — Transfer session to a device
-     */
     public async transferSession(
         sessionId: string,
         request: TransferSessionRequest,
@@ -66,9 +54,6 @@ export class SessionService extends BaseService {
         return response.result;
     }
 
-    /**
-     * PATCH v1/sessions/{sessionId}/step — Update step progress
-     */
     public async updateStep(
         sessionId: string,
         request: UpdateSessionStepRequest,
@@ -79,9 +64,6 @@ export class SessionService extends BaseService {
         );
     }
 
-    /**
-     * POST v1/sessions/{sessionId}/complete — Complete session
-     */
     public async completeSession(
         sessionId: string,
         request?: CompleteSessionRequest,
@@ -93,38 +75,108 @@ export class SessionService extends BaseService {
     }
 
     /**
-     * GET v1/sessions/{sessionId}/events — Subscribe to SSE stream
-     * Backed by Redis Pub/Sub on channel session-events:{id}
-     *
+     * Subscribe to SSE stream for a session.
+     * 
+     * Passes the sessionToken as a query param because the native
+     * EventSource API cannot set Authorization headers.
+     * 
+     * Your C# Startup.cs OnMessageReceived picks this up and validates it.
+     * 
      * Returns an unsubscribe function to close the connection.
      */
     public subscribeToEvents(
         sessionId: string,
-        onEvent: (event: SessionEvent) => void,
-        onError?: (error: Event) => void,
+        sessionToken: string,                           // ← JWT from createSession response
+        handlers: SessionEventHandlers,
     ): () => void {
-        const url = `${API_BASE}/accounts/v1/sessions/${encodeURIComponent(sessionId)}/events`;
-        const eventSource = new EventSource(url);
+        const url = new URL(
+            `${API_BASE}/accounts/v1/sessions/${encodeURIComponent(sessionId)}/events`
+        );
+
+        // C# OnMessageReceived reads this query param
+        url.searchParams.set("access_token", sessionToken);
+
+        const eventSource = new EventSource(url.toString());
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+        eventSource.onopen = () => {
+            console.log("[SSE] Connected to session:", sessionId);
+            handlers.onConnected?.();
+        };
 
         eventSource.onmessage = (msg) => {
+            // Ignore heartbeat comments (": heartbeat")
+            if (!msg.data || msg.data.trim() === "") return;
+
             try {
                 const event: SessionEvent = JSON.parse(msg.data);
-                onEvent(event);
+                console.log("[SSE] Event received:", event.type, event);
+                this.routeEvent(event, handlers);
             } catch {
-                console.error('Failed to parse SSE event:', msg.data);
+                console.error("[SSE] Failed to parse event:", msg.data);
             }
         };
 
         eventSource.onerror = (err) => {
-            if (onError) {
-                onError(err);
-            } else {
-                console.error('SSE connection error:', err);
+            console.error("[SSE] Connection error:", err);
+            handlers.onError?.(err);
+
+            // EventSource auto-reconnects — but if session is done, close it
+            if (eventSource.readyState === EventSource.CLOSED) {
+                console.warn("[SSE] Connection permanently closed");
             }
         };
 
         return () => {
+            if (reconnectTimer) clearTimeout(reconnectTimer);
             eventSource.close();
+            console.log("[SSE] Unsubscribed from session:", sessionId);
         };
     }
+
+    /**
+     * Routes incoming SSE events to the correct handler.
+     * Matches exactly what C# PublishEventAsync emits.
+     */
+    private routeEvent(event: SessionEvent, handlers: SessionEventHandlers): void {
+        switch (event.type) {
+            case "SESSION_TRANSFERRED":
+                handlers.onTransferred?.(event);
+                break;
+
+            case "SESSION_STEP_CHANGED":
+                handlers.onStepChanged?.(event);
+                break;
+
+            case "SESSION_COMPLETED":
+                handlers.onCompleted?.(event);
+                break;
+
+            case "SESSION_ENDED":
+                handlers.onEnded?.(event);
+                break;
+
+            case "SESSION_EXPIRED":
+                handlers.onExpired?.(event);
+                break;
+
+            default: {
+                const unknownEvent = event as SessionEvent;
+                console.warn("[SSE] Unknown event type:", unknownEvent);
+                handlers.onUnknown?.(unknownEvent);
+            }
+        }
+    }
+}
+
+// Matches exactly what C# emits via PublishEventAsync
+export interface SessionEventHandlers {
+    onConnected?:   ()                       => void;
+    onTransferred?: (event: SessionEvent)    => void;
+    onStepChanged?: (event: SessionEvent)    => void;
+    onCompleted?:   (event: SessionEvent)    => void;
+    onEnded?:       (event: SessionEvent)    => void;
+    onExpired?:     (event: SessionEvent)    => void;
+    onError?:       (error: Event)           => void;
+    onUnknown?:     (event: SessionEvent)    => void;
 }
