@@ -203,24 +203,18 @@ export type SessionEventType =
   | 'SESSION_TRANSFERRED'
   | 'SESSION_STEP_CHANGED'
   | 'SESSION_COMPLETED'
-  | 'SESSION_ENDED';
+  | 'SESSION_ENDED'
+  | 'SESSION_EXPIRED';
 
 /**
- * SSE event payload
+ * SSE event payloads — flat JSON matching C# PublishEventAsync output.
  */
-export interface SessionEvent {
-  type: SessionEventType;
-  sessionId: string;
-  data?: {
-    deviceType?: string;
-    deviceId?: string;
-    currentStep?: string;
-    stepStatus?: StepStatus;
-    progress?: number;
-    redirectUrl?: string;
-    [key: string]: unknown;
-  };
-}
+export type SessionEvent =
+  | { type: 'SESSION_TRANSFERRED'; sessionId: string; fromDevice: string; toDevice: string }
+  | { type: 'SESSION_STEP_CHANGED'; sessionId: string; step: string; stepStatus: string; progress: number }
+  | { type: 'SESSION_COMPLETED'; sessionId: string; redirectUrl?: string; completedAt: string }
+  | { type: 'SESSION_ENDED'; sessionId: string }
+  | { type: 'SESSION_EXPIRED'; sessionId: string };
 
 /**
  * Request DTOs matching backend

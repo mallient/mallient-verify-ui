@@ -73,20 +73,18 @@ export function SessionProvider({ children }: SessionProviderProps) {
     setSteps(response.steps ?? []);
   }, []);
 
-  // Handle incoming SSE events
+  // Handle incoming SSE events — flat payloads from C# PublishEventAsync
   const handleSessionEvent = useCallback((event: SessionEvent) => {
     setLastEvent(event);
 
     switch (event.type) {
       case 'SESSION_TRANSFERRED':
         setSessionStatus('active');
-        setActiveDevice(event.data?.deviceType ?? null);
+        setActiveDevice(event.toDevice ?? null);
         break;
       case 'SESSION_STEP_CHANGED':
         setSessionStatus('in_progress');
-        if (event.data?.currentStep) {
-          setCurrentStep(event.data.currentStep);
-        }
+        setCurrentStep(event.step ?? null);
         break;
       case 'SESSION_COMPLETED':
         setSessionStatus('completed');
@@ -124,7 +122,15 @@ export function SessionProvider({ children }: SessionProviderProps) {
             // Subscribe to SSE for real-time updates from mobile
             unsubscribeSSE = service.subscribeToEvents(
               created.sessionId,
-              handleSessionEvent,
+              created.sessionToken,
+              {
+                onTransferred: handleSessionEvent,
+                onStepChanged: handleSessionEvent,
+                onCompleted: handleSessionEvent,
+                onEnded: handleSessionEvent,
+                onExpired: handleSessionEvent,
+                onError: (err) => console.error('SSE error:', err),
+              },
             );
           }
         }
