@@ -168,9 +168,79 @@ export interface SessionResponse {
   sessionId: string;
   sessionToken: string;
   brandConfig: BrandConfig;
+  status: SessionStatus;
+  activeDevice?: string;
+  currentStep?: string;
+  steps?: StepData[];
   expiresAt?: string;
   urlRedirectOnComplete: string;
   urlRedirectOnError: string;
   urlRedirectOnMobileContinue: string;
   onMobileContinue: boolean;
+}
+
+/**
+ * Session status — mirrors backend SessionData.Status
+ */
+export type SessionStatus = 'initialized' | 'active' | 'in_progress' | 'completed';
+
+/**
+ * Step-level tracking data
+ */
+export interface StepData {
+  name: string;
+  status: StepStatus;
+  data?: Record<string, unknown>;
+  completedAt?: string;
+}
+
+export type StepStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+
+/**
+ * SSE event types from the backend
+ */
+export type SessionEventType =
+  | 'SESSION_TRANSFERRED'
+  | 'SESSION_STEP_CHANGED'
+  | 'SESSION_COMPLETED'
+  | 'SESSION_ENDED';
+
+/**
+ * SSE event payload
+ */
+export interface SessionEvent {
+  type: SessionEventType;
+  sessionId: string;
+  data?: {
+    deviceType?: string;
+    deviceId?: string;
+    currentStep?: string;
+    stepStatus?: StepStatus;
+    progress?: number;
+    redirectUrl?: string;
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Request DTOs matching backend
+ */
+export interface SessionRequest {
+  domain: string;
+  sessionId?: string;
+}
+
+export interface TransferSessionRequest {
+  deviceType: string;
+  deviceId?: string;
+}
+
+export interface UpdateSessionStepRequest {
+  currentStep: string;
+  stepStatus: string;
+  stepData?: unknown;
+}
+
+export interface CompleteSessionRequest {
+  finalData?: unknown;
 }

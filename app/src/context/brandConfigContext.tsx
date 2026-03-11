@@ -30,7 +30,7 @@ export function BrandConfigProvider({ children }: BrandConfigProviderProps) {
       setError(null);
       
       const sessionService = new SessionService('');
-      const response = await sessionService.GenerateSession();
+      const response = await sessionService.createSession(window.location.hostname);
       
       if (response.brandConfig) {
         // Merge with default config to ensure all fields are present

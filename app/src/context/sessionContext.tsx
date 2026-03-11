@@ -1,25 +1,41 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  type VerificationStatus,
-  type VerificationSession,
-  createVerificationSession,
-  updateVerificationStatus,
-  subscribeToVerificationStatus,
-  getVerificationSession,
-} from '@/lib/verificationService';
+import { SessionService } from '@/redux/api/sessionService';
 import { useBrandConfig } from './brandConfigContext';
+import type {
+  SessionStatus,
+  SessionEvent,
+  StepData,
+  SessionRequest,
+  UpdateSessionStepRequest,
+  CompleteSessionRequest,
+} from '@/redux/types/brandConfig';
 
 interface SessionContextState {
-  session: VerificationSession | null;
-  verificationStatus: VerificationStatus;
+  sessionId: string | null;
+  sessionToken: string | null;
+  sessionStatus: SessionStatus;
+  activeDevice: string | null;
+  currentStep: string | null;
+  steps: StepData[];
   isLoading: boolean;
   isMobileAccess: boolean;
   brandName: string;
   urlRedirectOnComplete: string;
   urlRedirectOnError: string;
   urlRedirectOnMobileContinue: string;
-  updateStatus: (status: VerificationStatus) => Promise<void>;
+  /** Transfer session to mobile device */
+  transferToMobile: () => Promise<void>;
+  /** Transfer session to web (desktop) device */
+  transferToWeb: () => Promise<void>;
+  /** Update the session */
+  updateSession: (request: SessionRequest) => Promise<void>;
+  /** Update a step's progress — called from mobile verification flow */
+  updateStep: (request: UpdateSessionStepRequest) => Promise<void>;
+  /** Complete the session — publishes SESSION_COMPLETED with redirect URL */
+  completeSession: (request?: CompleteSessionRequest) => Promise<void>;
+  /** Last SSE event received — components can react to real-time updates */
+  lastEvent: SessionEvent | null;
 }
 
 const SessionContext = createContext<SessionContextState | undefined>(undefined);
@@ -32,75 +48,151 @@ export function SessionProvider({ children }: SessionProviderProps) {
   const [searchParams] = useSearchParams();
   const { brandConfig } = useBrandConfig();
 
-  const [session, setSession] = useState<VerificationSession | null>(null);
-  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('pending');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>('initialized');
+  const [activeDevice, setActiveDevice] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<string | null>(null);
+  const [steps, setSteps] = useState<StepData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastEvent, setLastEvent] = useState<SessionEvent | null>(null);
+
+  const sessionServiceRef = useRef(new SessionService(''));
 
   const sessionIdFromUrl = searchParams.get('session');
   const tokenFromUrl = searchParams.get('token');
   const isMobileAccess = !!(sessionIdFromUrl && tokenFromUrl);
 
-  const initializeSession = useCallback(async () => {
-    try {
-      if (isMobileAccess && sessionIdFromUrl && tokenFromUrl) {
-        // Mobile device accessing via QR code
-        const existingSession = await getVerificationSession(sessionIdFromUrl, tokenFromUrl);
-        if (existingSession) {
-          await updateVerificationStatus(sessionIdFromUrl, 'mobile', tokenFromUrl);
-          setVerificationStatus('mobile');
-          setSession(existingSession);
+  // Sync state from a session response
+  const applySessionResponse = useCallback((response: { sessionId: string; sessionToken: string; status: SessionStatus; activeDevice?: string; currentStep?: string; steps?: StepData[] }) => {
+    setSessionId(response.sessionId);
+    setSessionToken(response.sessionToken);
+    setSessionStatus(response.status);
+    setActiveDevice(response.activeDevice ?? null);
+    setCurrentStep(response.currentStep ?? null);
+    setSteps(response.steps ?? []);
+  }, []);
+
+  // Handle incoming SSE events
+  const handleSessionEvent = useCallback((event: SessionEvent) => {
+    setLastEvent(event);
+
+    switch (event.type) {
+      case 'SESSION_TRANSFERRED':
+        setSessionStatus('active');
+        setActiveDevice(event.data?.deviceType ?? null);
+        break;
+      case 'SESSION_STEP_CHANGED':
+        setSessionStatus('in_progress');
+        if (event.data?.currentStep) {
+          setCurrentStep(event.data.currentStep);
         }
-      } else {
-        // New visitor: create session and subscribe to status updates
-        const newSession = await createVerificationSession();
-        setSession(newSession);
-
-        const unsubscribe = subscribeToVerificationStatus(
-          newSession.sessionId,
-          newSession.sessionToken,
-          (status: VerificationStatus) => {
-            setVerificationStatus(status);
-          },
-        );
-
-        return unsubscribe;
-      }
-    } catch (error) {
-      console.error('Error initializing session:', error);
-    } finally {
-      setIsLoading(false);
+        break;
+      case 'SESSION_COMPLETED':
+        setSessionStatus('completed');
+        break;
+      case 'SESSION_ENDED':
+        setSessionStatus('completed');
+        break;
     }
-  }, [isMobileAccess, sessionIdFromUrl, tokenFromUrl]);
+  }, []);
 
+  // Initialize: create or fetch session, then open SSE
   useEffect(() => {
-    let cleanup: (() => void) | undefined;
+    let unsubscribeSSE: (() => void) | undefined;
+    let cancelled = false;
 
-    initializeSession().then((unsubscribe) => {
-      cleanup = unsubscribe;
-    });
+    const init = async () => {
+      try {
+        const service = sessionServiceRef.current;
+
+        if (isMobileAccess && sessionIdFromUrl) {
+          // Mobile device — fetch existing session and transfer
+          const existing = await service.getSession(sessionIdFromUrl);
+          if (!cancelled) {
+            applySessionResponse(existing);
+            // Transfer to mobile
+            const updated = await service.transferSession(sessionIdFromUrl, { deviceType: 'mobile' });
+            if (!cancelled) applySessionResponse(updated);
+          }
+        } else {
+          // Desktop — create new session
+          const domain = brandConfig.domain || window.location.hostname;
+          const created = await service.createSession(domain);
+          if (!cancelled) {
+            applySessionResponse(created);
+            // Subscribe to SSE for real-time updates from mobile
+            unsubscribeSSE = service.subscribeToEvents(
+              created.sessionId,
+              handleSessionEvent,
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing session:', error);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    init();
 
     return () => {
-      cleanup?.();
+      cancelled = true;
+      unsubscribeSSE?.();
     };
-  }, [initializeSession]);
+  }, [isMobileAccess, sessionIdFromUrl, brandConfig.domain, applySessionResponse, handleSessionEvent]);
 
-  const updateSessionStatus = useCallback(async (status: VerificationStatus) => {
-    if (session) {
-      await updateVerificationStatus(session.sessionId, status, session.sessionToken);
-      setVerificationStatus(status);
-    }
-  }, [session]);
+  const transferToMobile = useCallback(async () => {
+    if (!sessionId) return;
+    const response = await sessionServiceRef.current.transferSession(sessionId, { deviceType: 'mobile' });
+    applySessionResponse(response);
+  }, [sessionId, applySessionResponse]);
+
+  const transferToWeb = useCallback(async () => {
+    if (!sessionId) return;
+    const response = await sessionServiceRef.current.transferSession(sessionId, { deviceType: 'desktop' });
+    applySessionResponse(response);
+  }, [sessionId, applySessionResponse]);
+
+  const updateSessionFn = useCallback(async (request: SessionRequest) => {
+    if (!sessionId) return;
+    const response = await sessionServiceRef.current.updateSession(sessionId, request);
+    applySessionResponse(response);
+  }, [sessionId, applySessionResponse]);
+
+  const updateStep = useCallback(async (request: UpdateSessionStepRequest) => {
+    if (!sessionId) return;
+    await sessionServiceRef.current.updateStep(sessionId, request);
+    setCurrentStep(request.currentStep);
+    setSessionStatus('in_progress');
+  }, [sessionId]);
+
+  const completeSessionFn = useCallback(async (request?: CompleteSessionRequest) => {
+    if (!sessionId) return;
+    await sessionServiceRef.current.completeSession(sessionId, request);
+    setSessionStatus('completed');
+  }, [sessionId]);
 
   const value: SessionContextState = {
-    session,
-    verificationStatus,
+    sessionId,
+    sessionToken,
+    sessionStatus,
+    activeDevice,
+    currentStep,
+    steps,
     isLoading,
     isMobileAccess,
     brandName: brandConfig.brandName || '',
     urlRedirectOnComplete: brandConfig.urlRedirectOnComplete || '/dashboard',
     urlRedirectOnError: brandConfig.urlRedirectOnError || '/error',
     urlRedirectOnMobileContinue: brandConfig.urlRedirectOnMobileContinue || '/mobile-verify',
-    updateStatus: updateSessionStatus,
+    transferToMobile,
+    transferToWeb,
+    updateSession: updateSessionFn,
+    updateStep,
+    completeSession: completeSessionFn,
+    lastEvent,
   };
 
   return (

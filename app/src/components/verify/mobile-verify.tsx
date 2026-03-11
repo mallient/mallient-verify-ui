@@ -24,7 +24,7 @@ interface MobileVerifyProps {
 
 export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) => {
     const navigate = useNavigate();
-    const { brandName, urlRedirectOnComplete } = useSession();
+    const { brandName, urlRedirectOnComplete, updateStep, completeSession } = useSession();
     const [state, setState] = useState<VerificationState>(initialVerificationState);
     const [subStep, setSubStep] = useState<SubStep>("instruction");
 
@@ -36,46 +36,59 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
         (idType: IdType) => {
             updateState({ selectedIdType: idType, step: "scan_front" });
             setSubStep("instruction");
+            updateStep({ currentStep: 'scan_front', stepStatus: 'in_progress' });
         },
-        [updateState]
+        [updateState, updateStep]
     );
 
     const handleFrontCapture = useCallback(
         (imageData: string) => {
             updateState({ frontImage: imageData });
+            updateStep({ currentStep: 'scan_front', stepStatus: 'completed' });
             
             if (state.selectedIdType?.requiresBackScan) {
                 // Show flip transition screen
                 updateState({ step: "scan_back" });
                 setSubStep("transition");
+                updateStep({ currentStep: 'scan_back', stepStatus: 'in_progress' });
             } else {
                 // Go directly to selfie
                 updateState({ step: "capture_selfie" });
                 setSubStep("transition");
+                updateStep({ currentStep: 'capture_selfie', stepStatus: 'in_progress' });
             }
         },
-        [state.selectedIdType, updateState]
+        [state.selectedIdType, updateState, updateStep]
     );
 
     const handleBackCapture = useCallback(
         (imageData: string) => {
             updateState({ backImage: imageData, step: "capture_selfie" });
             setSubStep("transition");
+            updateStep({ currentStep: 'scan_back', stepStatus: 'completed' });
+            updateStep({ currentStep: 'capture_selfie', stepStatus: 'in_progress' });
         },
-        [updateState]
+        [updateState, updateStep]
     );
 
     const handleSelfieCapture = useCallback(
         (imageData: string) => {
             updateState({ selfieImage: imageData, step: "processing" });
+            updateStep({ currentStep: 'capture_selfie', stepStatus: 'completed' });
+            updateStep({ currentStep: 'processing', stepStatus: 'in_progress' });
             
             // TODO: Send images to backend for verification
-            // For now, simulate processing
-            setTimeout(() => {
-                updateState({ step: "complete" });
+            // For now, simulate processing then complete the session
+            setTimeout(async () => {
+                try {
+                    await completeSession();
+                    updateState({ step: "complete" });
+                } catch {
+                    updateState({ step: "error", error: "Failed to complete verification" });
+                }
             }, 2000);
         },
-        [updateState]
+        [updateState, updateStep, completeSession]
     );
 
     const handleCancel = useCallback(() => {
