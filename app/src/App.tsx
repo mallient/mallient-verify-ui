@@ -2,6 +2,7 @@ import { BrowserRouter } from "react-router-dom";
 import "./App.css";
 import { ThemeProvider } from "./theme/theme-provider";
 import { BrandConfigProvider } from "./context/brandConfigContext";
+import { SessionProvider } from "./context/sessionContext";
 import { routing as Routing } from "./routing/router";
 import { Banner } from "./components/layout/Banner";
 
@@ -13,7 +14,9 @@ function App() {
           <BrandConfigProvider>
             <Banner />
             <BrowserRouter>
-              <Routing />
+              <SessionProvider>
+                <Routing />
+              </SessionProvider>
             </BrowserRouter>
           </BrandConfigProvider>
         </ThemeProvider>
