@@ -24,6 +24,7 @@ export class SessionService extends BaseService {
                     sessionToken: `token_${Math.random().toString(36).substring(7)}`,
                     expiresAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
                     brandConfig: {
+                        domain: 'testbank.com',
                         logo: {
                             primaryLogoUrl: 'https://dnmmf3ubeuub9.cloudfront.net/Logos/mallient-gold.png',
                             logoPlacement: 'header',
@@ -72,6 +73,7 @@ export class SessionService extends BaseService {
                         urlRedirectOnComplete: 'https://demo-bank.mallient.com/',
                         urlRedirectOnError: 'https://example.com/verification-error',
                         urlRedirectOnMobileContinue: 'https://d1xzs9779v7m5f.cloudfront.net/mobile-verify',
+                        onMobileContinue: false,
                     },
                 });
             }, 500); // Simulate network delay

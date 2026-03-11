@@ -85,6 +85,8 @@ export interface TextConfig {
 }
 
 export interface BrandConfig {
+  /** Domain configuration */
+  domain?: string;
   /** Logo configuration */
   logo: LogoConfig;
   /** Color scheme configuration */
@@ -170,4 +172,5 @@ export interface SessionResponse {
   urlRedirectOnComplete: string;
   urlRedirectOnError: string;
   urlRedirectOnMobileContinue: string;
+  onMobileContinue: boolean;
 }
