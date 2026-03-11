@@ -13,6 +13,7 @@ import {
     SelfieTransition,
 } from "./scan-instructions";
 import { Button } from "../ui/button";
+import { useSession } from "@/context/sessionContext";
 
 type SubStep = "instruction" | "capture" | "transition";
 
@@ -23,6 +24,7 @@ interface MobileVerifyProps {
 
 export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) => {
     const navigate = useNavigate();
+    const { brandName, urlRedirectOnComplete } = useSession();
     const [state, setState] = useState<VerificationState>(initialVerificationState);
     const [subStep, setSubStep] = useState<SubStep>("instruction");
 
@@ -93,10 +95,12 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
     const handleComplete = useCallback(() => {
         if (onComplete) {
             onComplete();
+        } else if (urlRedirectOnComplete.startsWith('http://') || urlRedirectOnComplete.startsWith('https://')) {
+            window.location.href = urlRedirectOnComplete;
         } else {
-            window.location.href = `${import.meta.env.VITE_BASE_PATH}/verification`;
+            navigate(urlRedirectOnComplete);
         }
-    }, [onComplete]);
+    }, [onComplete, urlRedirectOnComplete, navigate]);
 
     // Render based on current step
     const renderStep = () => {
@@ -215,7 +219,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                             onClick={handleComplete}
                             variant={'default'}
                            >
-                            Continue to Mallient
+                            Continue to {brandName || 'Dashboard'}
                         </Button>
                     </div>
                 );
