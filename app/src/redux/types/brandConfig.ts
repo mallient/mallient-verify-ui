@@ -103,6 +103,12 @@ export interface BrandConfig {
   privacyPolicyUrl?: string;
   /** Terms of service URL */
   termsOfServiceUrl?: string;
+  /** URL to redirect after successful verification */
+  urlRedirectOnComplete?: string;
+  /** URL to redirect on verification error */
+  urlRedirectOnError?: string;
+  /** URL to redirect when user continues on mobile */
+  urlRedirectOnMobileContinue?: string;
 }
 
 /**
@@ -148,6 +154,9 @@ export const DEFAULT_BRAND_CONFIG: BrandConfig = {
     welcomeMessage: "Welcome to Identity Verification",
     instructionText: "Please follow the steps to verify your identity",
   },
+  urlRedirectOnComplete: '/dashboard',
+  urlRedirectOnError: '/error',
+  urlRedirectOnMobileContinue: '/mobile-verify',
 };
 
 /**
