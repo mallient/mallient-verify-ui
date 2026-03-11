@@ -19,29 +19,44 @@ export const Verify = () => {
 
   // Get session state from context
   const {
-    session,
-    verificationStatus,
+    sessionId,
+    sessionToken,
+    sessionStatus,
     isLoading,
     isMobileAccess,
     urlRedirectOnComplete,
     urlRedirectOnMobileContinue,
-    updateStatus,
+    transferToWeb,
+    lastEvent,
   } = useSession();
 
   // Generate QR URL after session is available
   useEffect(() => {
-    if (session && !isMobileAccess && !qrUrl) {
+    if (sessionId && sessionToken && !isMobileAccess && !qrUrl) {
       const baseUrl = urlRedirectOnMobileContinue.startsWith('http')
         ? urlRedirectOnMobileContinue.split('?')[0]
         : window.location.origin + '/verify';
       
-      const url = `${baseUrl}?session=${encodeURIComponent(session.sessionId)}&token=${encodeURIComponent(session.sessionToken)}`;
+      const url = `${baseUrl}?session=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(sessionToken)}`;
       setQrUrl(url);
     }
-  }, [session, isMobileAccess, qrUrl, urlRedirectOnMobileContinue]);
+  }, [sessionId, sessionToken, isMobileAccess, qrUrl, urlRedirectOnMobileContinue]);
+
+  // React to SESSION_COMPLETED event — redirect desktop to the complete URL
+  useEffect(() => {
+    if (lastEvent?.type === 'SESSION_COMPLETED') {
+      const redirectUrl = lastEvent.data?.redirectUrl as string | undefined;
+      const target = redirectUrl || urlRedirectOnComplete;
+      if (target.startsWith('http://') || target.startsWith('https://')) {
+        window.location.href = target;
+      } else {
+        navigate(target);
+      }
+    }
+  }, [lastEvent, urlRedirectOnComplete, navigate]);
 
   const handleContinueOnWeb = async () => {
-    await updateStatus("web");
+    await transferToWeb();
     setMode("web-verify");
   };
 
@@ -90,8 +105,8 @@ export const Verify = () => {
     );
   }
 
-  // Web view - verified on mobile device
-  if (verificationStatus === "mobile") {
+  // Web view - session transferred to mobile device
+  if (sessionStatus === 'active' && !isMobileAccess) {
     return (
       <div className="flex flex-col flex-1">
         <div className="flex flex-col items-center justify-center flex-1 p-4">

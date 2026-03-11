@@ -93,7 +93,6 @@ export default abstract class BaseService {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.token}`,
       },
-      next: { revalidate: 60 },
     };
 
     return await fetch(endpointUrl, options)
@@ -103,6 +102,30 @@ export default abstract class BaseService {
       })
       .catch((error) => {
         console.error(error);
+      });
+  }
+
+  static async PatchData(
+    endpointUrl: string,
+    body: any,
+    _httpReqObj?: Omit<IRequest, "method" | "body">
+  ): Promise<any> {
+    const options = {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.token}`,
+      },
+      body: JSON.stringify(body),
+    };
+
+    return await fetch(endpointUrl, options)
+      .then((response) => response.json())
+      .then((data) => {
+        return data;
+      })
+      .catch((error) => {
+        console.error("patch error:", error);
       });
   }
 }
