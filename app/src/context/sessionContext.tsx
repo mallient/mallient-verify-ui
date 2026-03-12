@@ -4,11 +4,8 @@ import { SessionService } from '@/redux/api/sessionService';
 import { useBrandConfig } from './brandConfigContext';
 import type {
   SessionStatus,
-  SessionEvent,
   StepData,
-  SessionRequest,
-  UpdateSessionStepRequest,
-  CompleteSessionRequest,
+  WebSocketEvent,
 } from '@/redux/types/brandConfig';
 
 interface SessionContextState {
@@ -21,21 +18,20 @@ interface SessionContextState {
   isLoading: boolean;
   isMobileAccess: boolean;
   brandName: string;
-  urlRedirectOnComplete: string;
-  urlRedirectOnError: string;
-  urlRedirectOnMobileContinue: string;
+  /** Error message if session initialization failed */
+  error: string | null;
   /** Transfer session to mobile device */
   transferToMobile: () => Promise<void>;
   /** Transfer session to web (desktop) device */
   transferToWeb: () => Promise<void>;
-  /** Update the session */
-  updateSession: (request: SessionRequest) => Promise<void>;
-  /** Update a step's progress — called from mobile verification flow */
-  updateStep: (request: UpdateSessionStepRequest) => Promise<void>;
-  /** Complete the session — publishes SESSION_COMPLETED with redirect URL */
-  completeSession: (request?: CompleteSessionRequest) => Promise<void>;
-  /** Last SSE event received — components can react to real-time updates */
-  lastEvent: SessionEvent | null;
+  /** Update the current step */
+  updateStep: (currentStep: string) => Promise<void>;
+  /** Complete the session */
+  completeSession: () => Promise<void>;
+  /** Last WebSocket event received */
+  lastEvent: WebSocketEvent | null;
+  /** Whether the WebSocket is currently connected */
+  wsConnected: boolean;
 }
 
 const SessionContext = createContext<SessionContextState | undefined>(undefined);
@@ -53,89 +49,80 @@ export function SessionProvider({ children }: SessionProviderProps) {
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('initialized');
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
-  const [steps, setSteps] = useState<StepData[]>([]);
+  const [steps] = useState<StepData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastEvent, setLastEvent] = useState<SessionEvent | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastEvent, setLastEvent] = useState<WebSocketEvent | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
-  const sessionServiceRef = useRef(new SessionService(''));
+  const sessionServiceRef = useRef(new SessionService());
 
   const sessionIdFromUrl = searchParams.get('session');
   const tokenFromUrl = searchParams.get('token');
   const isMobileAccess = !!(sessionIdFromUrl && tokenFromUrl);
 
-  // Sync state from a session response
-  const applySessionResponse = useCallback((response: { sessionId: string; sessionToken: string; status: SessionStatus; activeDevice?: string; currentStep?: string; steps?: StepData[] }) => {
-    setSessionId(response.sessionId);
-    setSessionToken(response.sessionToken);
-    setSessionStatus(response.status);
-    setActiveDevice(response.activeDevice ?? null);
-    setCurrentStep(response.currentStep ?? null);
-    setSteps(response.steps ?? []);
-  }, []);
-
-  // Handle incoming SSE events — flat payloads from C# PublishEventAsync
-  const handleSessionEvent = useCallback((event: SessionEvent) => {
+  // Handle incoming WebSocket events
+  const handleWsMessage = useCallback((event: WebSocketEvent) => {
     setLastEvent(event);
 
-    switch (event.type) {
-      case 'SESSION_TRANSFERRED':
-        setSessionStatus('active');
-        setActiveDevice(event.toDevice ?? null);
-        break;
-      case 'SESSION_STEP_CHANGED':
-        setSessionStatus('in_progress');
-        setCurrentStep(event.step ?? null);
-        break;
-      case 'SESSION_COMPLETED':
-        setSessionStatus('completed');
-        break;
-      case 'SESSION_ENDED':
-        setSessionStatus('completed');
-        break;
+    if (event.status) {
+      setSessionStatus(event.status as SessionStatus);
+    }
+    if (event.activeDevice) {
+      setActiveDevice(event.activeDevice);
+    }
+    if (event.currentStep) {
+      setCurrentStep(event.currentStep);
     }
   }, []);
 
-  // Initialize: create or fetch session, then open SSE
+  // Initialize: connect WebSocket, create or resume session
   useEffect(() => {
-    let unsubscribeSSE: (() => void) | undefined;
     let cancelled = false;
 
     const init = async () => {
       try {
         const service = sessionServiceRef.current;
 
+        // Connect WebSocket with event handlers
+        await service.connect({
+          onConnected: () => {
+            if (!cancelled) setWsConnected(true);
+          },
+          onMessage: (event) => {
+            if (!cancelled) handleWsMessage(event);
+          },
+          onError: (err) => console.error('WS error:', err),
+          onClose: () => {
+            if (!cancelled) setWsConnected(false);
+          },
+        });
+
         if (isMobileAccess && sessionIdFromUrl) {
-          // Mobile device — fetch existing session and transfer
-          const existing = await service.getSession(sessionIdFromUrl);
+          // Mobile device — update existing session to transfer to mobile
+          const response = await service.updateSession(sessionIdFromUrl, { isMobile: true });
           if (!cancelled) {
-            applySessionResponse(existing);
-            // Transfer to mobile
-            const updated = await service.transferSession(sessionIdFromUrl, { deviceType: 'mobile' });
-            if (!cancelled) applySessionResponse(updated);
+            setSessionId(response.sessionId);
+            setSessionToken(response.token || response.sessionId);
+            setActiveDevice('mobile');
+            setSessionStatus('active');
           }
         } else {
           // Desktop — create new session
           const domain = brandConfig.domain || window.location.hostname;
-          const created = await service.createSession(domain);
+          const response = await service.createSession(domain);
           if (!cancelled) {
-            applySessionResponse(created);
-            // Subscribe to SSE for real-time updates from mobile
-            unsubscribeSSE = service.subscribeToEvents(
-              created.sessionId,
-              created.sessionToken,
-              {
-                onTransferred: handleSessionEvent,
-                onStepChanged: handleSessionEvent,
-                onCompleted: handleSessionEvent,
-                onEnded: handleSessionEvent,
-                onExpired: handleSessionEvent,
-                onError: (err) => console.error('SSE error:', err),
-              },
-            );
+            setSessionId(response.sessionId);
+            setSessionToken(response.token || response.sessionId);
+            setActiveDevice('desktop');
+            setSessionStatus('initialized');
           }
         }
       } catch (error) {
         console.error('Error initializing session:', error);
+        if (!cancelled) {
+          setError(error instanceof Error ? error.message : 'Failed to connect to session service');
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -145,38 +132,36 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
     return () => {
       cancelled = true;
-      unsubscribeSSE?.();
+      sessionServiceRef.current.disconnect();
     };
-  }, [isMobileAccess, sessionIdFromUrl, brandConfig.domain, applySessionResponse, handleSessionEvent]);
+  }, [isMobileAccess, sessionIdFromUrl, brandConfig.domain, handleWsMessage]);
 
   const transferToMobile = useCallback(async () => {
     if (!sessionId) return;
-    const response = await sessionServiceRef.current.transferSession(sessionId, { deviceType: 'mobile' });
-    applySessionResponse(response);
-  }, [sessionId, applySessionResponse]);
+    const response = await sessionServiceRef.current.updateSession(sessionId, { isMobile: true });
+    setSessionToken(response.token || response.sessionId);
+    setActiveDevice('mobile');
+    setSessionStatus('active');
+  }, [sessionId]);
 
   const transferToWeb = useCallback(async () => {
     if (!sessionId) return;
-    const response = await sessionServiceRef.current.transferSession(sessionId, { deviceType: 'desktop' });
-    applySessionResponse(response);
-  }, [sessionId, applySessionResponse]);
+    const response = await sessionServiceRef.current.updateSession(sessionId, { isMobile: false });
+    setSessionToken(response.token || response.sessionId);
+    setActiveDevice('desktop');
+    setSessionStatus('active');
+  }, [sessionId]);
 
-  const updateSessionFn = useCallback(async (request: SessionRequest) => {
+  const updateStep = useCallback(async (step: string) => {
     if (!sessionId) return;
-    const response = await sessionServiceRef.current.updateSession(sessionId, request);
-    applySessionResponse(response);
-  }, [sessionId, applySessionResponse]);
-
-  const updateStep = useCallback(async (request: UpdateSessionStepRequest) => {
-    if (!sessionId) return;
-    await sessionServiceRef.current.updateStep(sessionId, request);
-    setCurrentStep(request.currentStep);
+    await sessionServiceRef.current.updateSession(sessionId, { currentStep: step });
+    setCurrentStep(step);
     setSessionStatus('in_progress');
   }, [sessionId]);
 
-  const completeSessionFn = useCallback(async (request?: CompleteSessionRequest) => {
+  const completeSession = useCallback(async () => {
     if (!sessionId) return;
-    await sessionServiceRef.current.completeSession(sessionId, request);
+    await sessionServiceRef.current.updateSession(sessionId, { status: 'completed' });
     setSessionStatus('completed');
   }, [sessionId]);
 
@@ -190,15 +175,13 @@ export function SessionProvider({ children }: SessionProviderProps) {
     isLoading,
     isMobileAccess,
     brandName: brandConfig.brandName || '',
-    urlRedirectOnComplete: brandConfig.urlRedirectOnComplete || '/dashboard',
-    urlRedirectOnError: brandConfig.urlRedirectOnError || '/error',
-    urlRedirectOnMobileContinue: brandConfig.urlRedirectOnMobileContinue || '/mobile-verify',
+    error,
     transferToMobile,
     transferToWeb,
-    updateSession: updateSessionFn,
     updateStep,
-    completeSession: completeSessionFn,
+    completeSession,
     lastEvent,
+    wsConnected,
   };
 
   return (

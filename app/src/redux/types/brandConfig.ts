@@ -162,21 +162,49 @@ export const DEFAULT_BRAND_CONFIG: BrandConfig = {
 };
 
 /**
- * Session response with brand configuration
+ * Organization URLs configuration
+ */
+export interface OrganizationUrls {
+  urlRedirectOnComplete?: string;
+  urlRedirectOnError?: string;
+  urlRedirectOnMobileContinue?: string;
+}
+
+/**
+ * Organization response from the backend
+ */
+export interface OrganizationResponse {
+  organizationId: string;
+  name: string;
+  domain: string;
+  contactEmail: string;
+  contactPhone?: string;
+  isActive: boolean;
+  allowedDocuments: string[];
+  urls: OrganizationUrls;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Organization + branding response from GET v1/organizations/domain/{domain}
+ */
+export interface OrganizationBrandingResponse {
+  organization: OrganizationResponse;
+  branding?: BrandConfig;
+}
+
+/**
+ * Session response from WebSocket createSession/updateSession
  */
 export interface SessionResponse {
   sessionId: string;
-  sessionToken: string;
-  brandConfig: BrandConfig;
-  status: SessionStatus;
+  token?: string;
+  domain?: string;
+  status?: string;
   activeDevice?: string;
   currentStep?: string;
-  steps?: StepData[];
-  expiresAt?: string;
-  urlRedirectOnComplete: string;
-  urlRedirectOnError: string;
-  urlRedirectOnMobileContinue: string;
-  onMobileContinue: boolean;
+  isMobile?: boolean;
 }
 
 /**
@@ -197,44 +225,30 @@ export interface StepData {
 export type StepStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
 /**
- * SSE event types from the backend
+ * WebSocket message sent to the session Lambda.
+ * The `action` field is used by API Gateway for route selection.
  */
-export type SessionEventType =
-  | 'SESSION_TRANSFERRED'
-  | 'SESSION_STEP_CHANGED'
-  | 'SESSION_COMPLETED'
-  | 'SESSION_ENDED'
-  | 'SESSION_EXPIRED';
-
-/**
- * SSE event payloads — flat JSON matching C# PublishEventAsync output.
- */
-export type SessionEvent =
-  | { type: 'SESSION_TRANSFERRED'; sessionId: string; fromDevice: string; toDevice: string }
-  | { type: 'SESSION_STEP_CHANGED'; sessionId: string; step: string; stepStatus: string; progress: number }
-  | { type: 'SESSION_COMPLETED'; sessionId: string; redirectUrl?: string; completedAt: string }
-  | { type: 'SESSION_ENDED'; sessionId: string }
-  | { type: 'SESSION_EXPIRED'; sessionId: string };
-
-/**
- * Request DTOs matching backend
- */
-export interface SessionRequest {
-  domain: string;
+export interface WebSocketMessage {
+  action: 'createSession' | 'updateSession';
+  domain?: string;
+  brandConfig?: string;
   sessionId?: string;
+  status?: string;
+  isMobile?: boolean;
+  currentStep?: string;
 }
 
-export interface TransferSessionRequest {
-  deviceType: string;
-  deviceId?: string;
-}
-
-export interface UpdateSessionStepRequest {
-  currentStep: string;
-  stepStatus: string;
-  stepData?: unknown;
-}
-
-export interface CompleteSessionRequest {
-  finalData?: unknown;
+/**
+ * WebSocket event received from the session Lambda.
+ */
+export interface WebSocketEvent {
+  type: string;
+  sessionId?: string;
+  token?: string;
+  error?: string;
+  status?: string;
+  isMobile?: boolean;
+  activeDevice?: string;
+  currentStep?: string;
+  [key: string]: unknown;
 }

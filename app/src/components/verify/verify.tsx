@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import { MobileVerify } from "./mobile-verify";
-import { useTextConfig, useColorConfig } from "@/context/brandConfigContext";
+import { useTextConfig, useColorConfig, useBrandConfig } from "@/context/brandConfigContext";
 import { useSession } from "@/context/sessionContext";
 
 type VerifyMode = "choose" | "web-verify";
@@ -11,11 +11,13 @@ type VerifyMode = "choose" | "web-verify";
 export const Verify = () => {
   const [qrUrl, setQrUrl] = useState<string>("");
   const [mode, setMode] = useState<VerifyMode>("choose");
+  const [showWsBanner, setShowWsBanner] = useState(false);
   const navigate = useNavigate();
   
   // Get brand configuration from context
   const textConfig = useTextConfig();
   const colorConfig = useColorConfig();
+  const { brandConfig } = useBrandConfig();
 
   // Get session state from context
   const {
@@ -25,11 +27,23 @@ export const Verify = () => {
     currentStep,
     isLoading,
     isMobileAccess,
-    urlRedirectOnComplete,
-    urlRedirectOnMobileContinue,
     transferToWeb,
     lastEvent,
+    wsConnected,
+    error: sessionError,
   } = useSession();
+
+  const urlRedirectOnComplete = brandConfig.urlRedirectOnComplete || '/dashboard';
+  const urlRedirectOnMobileContinue = brandConfig.urlRedirectOnMobileContinue || '/mobile-verify';
+
+  // Show a temporary banner when WebSocket connects
+  useEffect(() => {
+    if (wsConnected) {
+      setShowWsBanner(true);
+      const timer = setTimeout(() => setShowWsBanner(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [wsConnected]);
 
   // Generate QR URL after session is available
   useEffect(() => {
@@ -43,11 +57,10 @@ export const Verify = () => {
     }
   }, [sessionId, sessionToken, isMobileAccess, qrUrl, urlRedirectOnMobileContinue]);
 
-  // React to SESSION_COMPLETED event — redirect desktop to the complete URL
+  // React to session completed event — redirect desktop
   useEffect(() => {
-    if (lastEvent?.type === 'SESSION_COMPLETED') {
-      const redirectUrl = lastEvent.type === 'SESSION_COMPLETED' ? lastEvent.redirectUrl : undefined;
-      const target = redirectUrl || urlRedirectOnComplete;
+    if (lastEvent?.type === 'completed' || lastEvent?.status === 'completed') {
+      const target = urlRedirectOnComplete;
       if (target.startsWith('http://') || target.startsWith('https://')) {
         window.location.href = target;
       } else {
@@ -155,6 +168,12 @@ export const Verify = () => {
   // Web view - pending verification (showing QR code + continue on web option)
   return (
     <div className="flex flex-col flex-1">
+      {showWsBanner && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2 animate-fade-in">
+          <span className="inline-block w-2 h-2 bg-green-300 rounded-full" />
+          Connected to live event stream
+        </div>
+      )}
       <div className="flex flex-col items-center justify-center flex-1 p-4">
         <h1 className="text-2xl font-bold mb-4" style={{ color: colorConfig.primaryColor }}>
           {textConfig.appTitle || "Identity Verification"}
@@ -164,6 +183,11 @@ export const Verify = () => {
         </p>
         {isLoading ? (
           <div className="text-gray-500">Setting up your session...</div>
+        ) : sessionError ? (
+          <div className="text-red-500 text-center max-w-md">
+            <p className="font-semibold mb-1">Unable to connect to session service</p>
+            <p className="text-sm text-red-400">{sessionError}</p>
+          </div>
         ) : qrUrl ? (
           <div className="bg-white p-4 rounded-lg shadow-lg">
             <QRCodeSVG
