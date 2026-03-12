@@ -24,6 +24,7 @@ export const Verify = () => {
     sessionId,
     sessionToken,
     sessionStatus,
+    activeDevice,
     currentStep,
     isLoading,
     isMobileAccess,
@@ -120,7 +121,14 @@ export const Verify = () => {
   }
 
   // Web view - session transferred to mobile device
-  if ((sessionStatus === 'active' || sessionStatus === 'in_progress') && !isMobileAccess) {
+  if (((sessionStatus === 'active' || sessionStatus === 'in_progress') || activeDevice === 'mobile') && !isMobileAccess) {
+    console.log('[Verify] Showing mobile transfer screen:', {
+      sessionStatus,
+      activeDevice,
+      currentStep,
+      isMobileAccess
+    });
+
     const stepLabel = currentStep
       ? currentStep.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
       : null;
@@ -144,12 +152,12 @@ export const Verify = () => {
             </svg>
           </div>
           <h1 className="text-2xl font-bold mb-2" style={{ color: colorConfig.primaryColor }}>
-            {sessionStatus === 'in_progress' ? 'Verification In Progress' : 'Transferred to Mobile'}
+            {sessionStatus === 'in_progress' ? 'Verification In Progress' : 'Continuing on Phone'}
           </h1>
           <p className="text-gray-500 text-center max-w-md mb-4">
             {sessionStatus === 'in_progress'
               ? 'Your identity is being verified on your mobile device. Please complete the steps there.'
-              : 'The session has been transferred to your mobile device. Please continue verification on your phone.'}
+              : 'The verification has been transferred to your mobile device. Please continue on your phone.'}
           </p>
           {stepLabel && (
             <div className="flex items-center gap-2 text-sm text-gray-400">
