@@ -67,6 +67,12 @@ export class SessionService {
                     if (data.sessionId) {
                         const pending = this.pendingRequests.get(data.sessionId);
                         if (pending) {
+                            console.log(`[WS] Resolving pending request for session ${data.sessionId}:`, {
+                                type: data.type,
+                                isMobile: data.isMobile,
+                                activeDevice: data.activeDevice,
+                                status: data.status
+                            });
                             this.pendingRequests.delete(data.sessionId);
                             pending.resolve({ sessionId: data.sessionId, token: data.token });
                             return;
@@ -77,6 +83,10 @@ export class SessionService {
                     if (data.sessionId && this.pendingRequests.has("__create__")) {
                         const pending = this.pendingRequests.get("__create__");
                         if (pending) {
+                            console.log("[WS] Resolving createSession request:", {
+                                sessionId: data.sessionId,
+                                type: data.type
+                            });
                             this.pendingRequests.delete("__create__");
                             pending.resolve({ sessionId: data.sessionId, token: data.token });
                             return;

@@ -63,13 +63,30 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
   // Handle incoming WebSocket events
   const handleWsMessage = useCallback((event: WebSocketEvent) => {
+    console.log('[SessionContext] Received WebSocket event:', event);
     setLastEvent(event);
+
+    // Handle session updates
+    if (event.type === 'updatedSession' || event.type === 'sessionUpdated') {
+      console.log('[SessionContext] Session updated:', {
+        isMobile: event.isMobile,
+        activeDevice: event.activeDevice,
+        status: event.status,
+        currentStep: event.currentStep
+      });
+    }
 
     if (event.status) {
       setSessionStatus(event.status as SessionStatus);
     }
     if (event.activeDevice) {
       setActiveDevice(event.activeDevice);
+    }
+    // If isMobile flag is set to true, update device to mobile
+    if (event.isMobile === true) {
+      console.log('[SessionContext] Session transferred to mobile device');
+      setActiveDevice('mobile');
+      setSessionStatus('active');
     }
     if (event.currentStep) {
       setCurrentStep(event.currentStep);
