@@ -1,13 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { SessionService } from '../redux/api/sessionService';
-import { type BrandConfig, DEFAULT_BRAND_CONFIG } from '../redux/types/brandConfig';
+import { BrandingService } from '../redux/api/brandingService';
+import { type BrandConfig, type OrganizationResponse, DEFAULT_BRAND_CONFIG } from '../redux/types/brandConfig';
 
 interface BrandConfigContextState {
   brandConfig: BrandConfig;
+  organization: OrganizationResponse | null;
   isLoading: boolean;
   error: Error | null;
-  sessionId: string | null;
-  sessionToken: string | null;
   refreshConfig: () => Promise<void>;
 }
 
@@ -19,39 +18,39 @@ interface BrandConfigProviderProps {
 
 export function BrandConfigProvider({ children }: BrandConfigProviderProps) {
   const [brandConfig, setBrandConfig] = useState<BrandConfig>(DEFAULT_BRAND_CONFIG);
+  const [organization, setOrganization] = useState<OrganizationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   const fetchConfig = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const sessionService = new SessionService('');
-      const response = await sessionService.createSession(window.location.hostname);
+      const brandingService = new BrandingService('');
+      const response = await brandingService.getOrganizationBranding(window.location.hostname);
       
-      if (response.brandConfig) {
+      setOrganization(response.organization);
+
+      if (response.branding) {
         // Merge with default config to ensure all fields are present
         const mergedConfig: BrandConfig = {
-          logo: { ...DEFAULT_BRAND_CONFIG.logo, ...response.brandConfig.logo },
-          colors: { ...DEFAULT_BRAND_CONFIG.colors, ...response.brandConfig.colors },
-          typography: { ...DEFAULT_BRAND_CONFIG.typography, ...response.brandConfig.typography },
-          layout: { ...DEFAULT_BRAND_CONFIG.layout, ...response.brandConfig.layout },
-          text: { ...DEFAULT_BRAND_CONFIG.text, ...response.brandConfig.text },
-          brandName: response.brandConfig.brandName || DEFAULT_BRAND_CONFIG.brandName,
-          supportEmail: response.brandConfig.supportEmail || DEFAULT_BRAND_CONFIG.supportEmail,
-          privacyPolicyUrl: response.brandConfig.privacyPolicyUrl || DEFAULT_BRAND_CONFIG.privacyPolicyUrl,
-          termsOfServiceUrl: response.brandConfig.termsOfServiceUrl || DEFAULT_BRAND_CONFIG.termsOfServiceUrl,
-          urlRedirectOnComplete: response.brandConfig.urlRedirectOnComplete || DEFAULT_BRAND_CONFIG.urlRedirectOnComplete,
-          urlRedirectOnError: response.brandConfig.urlRedirectOnError || DEFAULT_BRAND_CONFIG.urlRedirectOnError,
-          urlRedirectOnMobileContinue: response.brandConfig.urlRedirectOnMobileContinue || DEFAULT_BRAND_CONFIG.urlRedirectOnMobileContinue,
+          domain: response.organization.domain,
+          logo: { ...DEFAULT_BRAND_CONFIG.logo, ...response.branding.logo },
+          colors: { ...DEFAULT_BRAND_CONFIG.colors, ...response.branding.colors },
+          typography: { ...DEFAULT_BRAND_CONFIG.typography, ...response.branding.typography },
+          layout: { ...DEFAULT_BRAND_CONFIG.layout, ...response.branding.layout },
+          text: { ...DEFAULT_BRAND_CONFIG.text, ...response.branding.text },
+          brandName: response.branding.brandName || DEFAULT_BRAND_CONFIG.brandName,
+          supportEmail: response.branding.supportEmail || DEFAULT_BRAND_CONFIG.supportEmail,
+          privacyPolicyUrl: response.branding.privacyPolicyUrl || DEFAULT_BRAND_CONFIG.privacyPolicyUrl,
+          termsOfServiceUrl: response.branding.termsOfServiceUrl || DEFAULT_BRAND_CONFIG.termsOfServiceUrl,
+          urlRedirectOnComplete: response.branding.urlRedirectOnComplete || DEFAULT_BRAND_CONFIG.urlRedirectOnComplete,
+          urlRedirectOnError: response.branding.urlRedirectOnError || DEFAULT_BRAND_CONFIG.urlRedirectOnError,
+          urlRedirectOnMobileContinue: response.branding.urlRedirectOnMobileContinue || DEFAULT_BRAND_CONFIG.urlRedirectOnMobileContinue,
         };
         
         setBrandConfig(mergedConfig);
-        setSessionId(response.sessionId);
-        setSessionToken(response.sessionToken);
         
         // Apply CSS custom properties for dynamic theming
         applyThemeVariables(mergedConfig);
@@ -71,10 +70,9 @@ export function BrandConfigProvider({ children }: BrandConfigProviderProps) {
 
   const value: BrandConfigContextState = {
     brandConfig,
+    organization,
     isLoading,
     error,
-    sessionId,
-    sessionToken,
     refreshConfig: fetchConfig,
   };
 
