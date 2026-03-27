@@ -2,88 +2,36 @@ import { useBrandConfig } from '@/context/brandConfigContext';
 
 export const Banner = () => {
     const { brandConfig, isLoading } = useBrandConfig();
-    const { logo, layout, text, colors } = brandConfig;
+    const { logo, colors } = brandConfig;
+
+    const primaryColor = colors.primaryColor || '#635BFF';
 
     if (isLoading) {
         return (
-            <div className="w-full bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 py-4 px-6 border-b border-zinc-700/50 shadow-lg">
-                <div className="flex items-center justify-center">
-                    <div className="animate-pulse h-8 w-48 bg-zinc-700 rounded"></div>
-                </div>
+            <div className="flex items-center gap-3 px-5 py-3" style={{ backgroundColor: primaryColor }}>
+                <div className="animate-pulse size-6 rounded-full bg-white/30" />
+                <div className="animate-pulse h-4 w-32 rounded bg-white/20" />
             </div>
         );
     }
 
-    const bannerStyle = layout.bannerStyle === 'gradient'
-        ? `bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900`
-        : layout.bannerStyle === 'image' && layout.bannerBackgroundImageUrl
-        ? `bg-cover bg-center`
-        : `bg-[var(--color-background)]`;
-
-    const alignmentClass: Record<string, string> = {
-        left: 'justify-start',
-        center: 'justify-center',
-        right: 'justify-end',
-    };
-    const alignment = alignmentClass[layout.bannerTextAlignment || 'center'];
-
-    const logoPlacementClass: Record<string, string> = {
-        left: 'justify-start',
-        center: 'justify-center',
-        right: 'justify-end',
-        header: 'justify-center',
-    };
-    const logoPlacement = logoPlacementClass[logo.logoPlacement || 'header'];
-
     return (
-        <div 
-            className={`w-full py-4 px-6 border-b shadow-lg ${bannerStyle}`}
-            style={{
-                height: layout.bannerHeight || '64px',
-                borderBottomColor: colors.borderColor || '#3f3f46',
-                backgroundImage: layout.bannerStyle === 'image' && layout.bannerBackgroundImageUrl 
-                    ? `url(${layout.bannerBackgroundImageUrl})` 
-                    : undefined,
-            }}
-        >
-            <div className={`flex items-center ${logoPlacement}`}>
-                {logo.primaryLogoUrl ? (
-                    <img
-                        src={logo.primaryLogoUrl}
-                        alt={text.appTitle || 'Logo'}
-                        style={{
-                            width: logo.logoWidth || 'auto',
-                            height: logo.logoHeight || '40px',
-                        }}
-                        className="object-contain"
-                    />
-                ) : (
-                    <h2 
-                        className={`text-xl font-semibold tracking-widest uppercase ${layout.bannerTextAlignment === 'center' ? 'text-center' : ''}`}
-                        style={{
-                            color: colors.textColor || '#fafafa',
-                            fontFamily: brandConfig.typography.headingFontFamily,
-                            fontWeight: brandConfig.typography.headingFontWeight,
-                        }}
-                    >
-                        <span className="bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-200 bg-clip-text text-transparent">
-                            {text.appTitle || 'Mallient Verify'}
-                        </span>
-                    </h2>
-                )}
-            </div>
-            {text.tagline && (
-                <div className={`flex ${alignment} mt-1`}>
-                    <p 
-                        className="text-sm"
-                        style={{
-                            color: colors.textColor || '#fafafa',
-                            opacity: 0.8,
-                        }}
-                    >
-                        {text.tagline}
-                    </p>
-                </div>
+        <div className="flex items-center gap-3 px-5 py-3" style={{ backgroundColor: primaryColor }}>
+            {logo.primaryLogoUrl ? (
+                <img
+                    src={logo.primaryLogoUrl}
+                    alt="Logo"
+                    style={{
+                        width: logo.logoWidth || '100px',
+                        height: logo.logoHeight || '32px',
+                        objectFit: 'contain',
+                    }}
+                />
+            ) : (
+                <>
+                    <div className="size-6 rounded-full bg-white/30" />
+                    <span className="text-sm font-semibold text-white/90">Your Logo</span>
+                </>
             )}
         </div>
     );

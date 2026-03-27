@@ -111,6 +111,8 @@ export interface BrandConfig {
   urlRedirectOnError?: string;
   /** URL to redirect when user continues on mobile */
   urlRedirectOnMobileContinue?: string;
+  /** Whether to redirect user to mobile to continue */
+  onMobileContinue?: boolean;
 }
 
 /**
@@ -162,36 +164,26 @@ export const DEFAULT_BRAND_CONFIG: BrandConfig = {
 };
 
 /**
- * Organization URLs configuration
- */
-export interface OrganizationUrls {
-  urlRedirectOnComplete?: string;
-  urlRedirectOnError?: string;
-  urlRedirectOnMobileContinue?: string;
-}
-
-/**
- * Organization response from the backend
- */
-export interface OrganizationResponse {
-  organizationId: string;
-  name: string;
-  domain: string;
-  contactEmail: string;
-  contactPhone?: string;
-  isActive: boolean;
-  allowedDocuments: string[];
-  urls: OrganizationUrls;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Organization + branding response from GET v1/organizations/domain/{domain}
+ * Organization + branding response from GET /organizations/v1/branding/domain/{domain}
  */
 export interface OrganizationBrandingResponse {
-  organization: OrganizationResponse;
-  branding?: BrandConfig;
+  brandId: string;
+  domain: string;
+  organizationId: string;
+  applicationId: string;
+  brandName: string;
+  supportEmail: string;
+  privacyPolicyUrl: string;
+  termsOfServiceUrl: string;
+  urlRedirectOnComplete: string;
+  urlRedirectOnError: string;
+  urlRedirectOnMobileContinue: string;
+  onMobileContinue: boolean;
+  logo: LogoConfig;
+  colors: ColorConfig;
+  typography: TypographyConfig;
+  layout: LayoutConfig;
+  text: TextConfig;
 }
 
 /**
