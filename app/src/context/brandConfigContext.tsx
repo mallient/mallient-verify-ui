@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { BrandingService } from '../redux/api/brandingService';
-import { type BrandConfig, type OrganizationResponse, DEFAULT_BRAND_CONFIG } from '../redux/types/brandConfig';
+import { type BrandConfig, type OrganizationBrandingResponse, DEFAULT_BRAND_CONFIG } from '../redux/types/brandConfig';
 
 interface BrandConfigContextState {
   brandConfig: BrandConfig;
-  organization: OrganizationResponse | null;
+  organization: OrganizationBrandingResponse | null;
   isLoading: boolean;
   error: Error | null;
   refreshConfig: () => Promise<void>;
@@ -18,7 +18,7 @@ interface BrandConfigProviderProps {
 
 export function BrandConfigProvider({ children }: BrandConfigProviderProps) {
   const [brandConfig, setBrandConfig] = useState<BrandConfig>(DEFAULT_BRAND_CONFIG);
-  const [organization, setOrganization] = useState<OrganizationResponse | null>(null);
+  const [organization, setOrganization] = useState<OrganizationBrandingResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -29,32 +29,31 @@ export function BrandConfigProvider({ children }: BrandConfigProviderProps) {
       
       const brandingService = new BrandingService('');
       const response = await brandingService.getOrganizationBranding(window.location.hostname);
-      
-      setOrganization(response.organization);
+      console.log('Fetched brand configuration:', response);
+      setOrganization(response);
 
-      if (response.branding) {
-        // Merge with default config to ensure all fields are present
-        const mergedConfig: BrandConfig = {
-          domain: response.organization.domain,
-          logo: { ...DEFAULT_BRAND_CONFIG.logo, ...response.branding.logo },
-          colors: { ...DEFAULT_BRAND_CONFIG.colors, ...response.branding.colors },
-          typography: { ...DEFAULT_BRAND_CONFIG.typography, ...response.branding.typography },
-          layout: { ...DEFAULT_BRAND_CONFIG.layout, ...response.branding.layout },
-          text: { ...DEFAULT_BRAND_CONFIG.text, ...response.branding.text },
-          brandName: response.branding.brandName || DEFAULT_BRAND_CONFIG.brandName,
-          supportEmail: response.branding.supportEmail || DEFAULT_BRAND_CONFIG.supportEmail,
-          privacyPolicyUrl: response.branding.privacyPolicyUrl || DEFAULT_BRAND_CONFIG.privacyPolicyUrl,
-          termsOfServiceUrl: response.branding.termsOfServiceUrl || DEFAULT_BRAND_CONFIG.termsOfServiceUrl,
-          urlRedirectOnComplete: response.branding.urlRedirectOnComplete || DEFAULT_BRAND_CONFIG.urlRedirectOnComplete,
-          urlRedirectOnError: response.branding.urlRedirectOnError || DEFAULT_BRAND_CONFIG.urlRedirectOnError,
-          urlRedirectOnMobileContinue: response.branding.urlRedirectOnMobileContinue || DEFAULT_BRAND_CONFIG.urlRedirectOnMobileContinue,
-        };
-        
-        setBrandConfig(mergedConfig);
-        
-        // Apply CSS custom properties for dynamic theming
-        applyThemeVariables(mergedConfig);
-      }
+      // Merge with default config to ensure all fields are present
+      const mergedConfig: BrandConfig = {
+        domain: response.domain,
+        logo: { ...DEFAULT_BRAND_CONFIG.logo, ...response.logo },
+        colors: { ...DEFAULT_BRAND_CONFIG.colors, ...response.colors },
+        typography: { ...DEFAULT_BRAND_CONFIG.typography, ...response.typography },
+        layout: { ...DEFAULT_BRAND_CONFIG.layout, ...response.layout },
+        text: { ...DEFAULT_BRAND_CONFIG.text, ...response.text },
+        brandName: response.brandName || DEFAULT_BRAND_CONFIG.brandName,
+        supportEmail: response.supportEmail || DEFAULT_BRAND_CONFIG.supportEmail,
+        privacyPolicyUrl: response.privacyPolicyUrl || DEFAULT_BRAND_CONFIG.privacyPolicyUrl,
+        termsOfServiceUrl: response.termsOfServiceUrl || DEFAULT_BRAND_CONFIG.termsOfServiceUrl,
+        urlRedirectOnComplete: response.urlRedirectOnComplete || DEFAULT_BRAND_CONFIG.urlRedirectOnComplete,
+        urlRedirectOnError: response.urlRedirectOnError || DEFAULT_BRAND_CONFIG.urlRedirectOnError,
+        urlRedirectOnMobileContinue: response.urlRedirectOnMobileContinue || DEFAULT_BRAND_CONFIG.urlRedirectOnMobileContinue,
+        onMobileContinue: response.onMobileContinue,
+      };
+      
+      setBrandConfig(mergedConfig);
+      
+      // Apply CSS custom properties for dynamic theming
+      applyThemeVariables(mergedConfig);
     } catch (err) {
       console.error('Error fetching brand configuration:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch brand configuration'));

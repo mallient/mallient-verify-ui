@@ -28,11 +28,13 @@ function AppContent() {
   return (
     <>
       <Banner />
-      <BrowserRouter>
-        <SessionProvider>
-          <Routing />
-        </SessionProvider>
-      </BrowserRouter>
+      <div className="max-w-[1280px] mx-auto px-8 w-full flex flex-col flex-1">
+        <BrowserRouter>
+          <SessionProvider>
+            <Routing />
+          </SessionProvider>
+        </BrowserRouter>
+      </div>
     </>
   );
 }
