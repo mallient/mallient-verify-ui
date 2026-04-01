@@ -78,7 +78,7 @@ export const DocumentCapture = ({ onCapture, onCancel, mode, instructions, guida
         return () => { mountedRef.current = false; stopCamera(); };
     }, [startCamera, stopCamera]);
 
-    // Blur/exposure feedback loop (document mode only)
+    // Blur/exposure feedback loop (document mode only) s
     useEffect(() => {
         if (!isReady || mode === "barcode") return;
         const analysisCanvas = analysisCanvasRef.current;
