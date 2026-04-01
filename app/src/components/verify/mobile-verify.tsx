@@ -7,11 +7,8 @@ import {
 } from "@/lib/idTypes";
 import { IdTypeSelection } from "./id-type-selection";
 import { CameraCapture } from "./camera-capture";
-import {
-    ScanInstruction,
-    FlipIdTransition,
-    SelfieTransition,
-} from "./scan-instructions";
+import { ScanInstruction, FlipIdTransition, SelfieTransition } from "./scan-instructions";
+import { SubmissionReview } from "./submission-review";
 import { Button } from "../ui/button";
 import { useSession } from "@/context/sessionContext";
 import { useBrandConfig } from "@/context/brandConfigContext";
@@ -45,8 +42,8 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
     );
 
     const handleFrontCapture = useCallback(
-        (imageData: string) => {
-            updateState({ frontImage: imageData });
+        (imageData: string, score: number) => {
+            updateState({ frontImage: imageData, frontScore: score });
             updateStep('scan_front');
             
             if (state.selectedIdType?.requiresBackScan) {
@@ -65,8 +62,8 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
     );
 
     const handleBackCapture = useCallback(
-        (imageData: string) => {
-            updateState({ backImage: imageData, step: "capture_selfie" });
+        (imageData: string, score: number) => {
+            updateState({ backImage: imageData, backScore: score, step: "capture_selfie" });
             setSubStep("transition");
             updateStep('capture_selfie');
         },
@@ -74,22 +71,35 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
     );
 
     const handleSelfieCapture = useCallback(
-        (imageData: string) => {
-            updateState({ selfieImage: imageData, step: "processing" });
-            updateStep('processing');
-            
-            // TODO: Send images to backend for verification
-            // For now, simulate processing then complete the session
-            setTimeout(async () => {
-                try {
-                    await completeSession();
-                    updateState({ step: "complete" });
-                } catch {
-                    updateState({ step: "error", error: "Failed to complete verification" });
-                }
-            }, 2000);
+        (imageData: string, score: number) => {
+            updateState({ selfieImage: imageData, selfieScore: score, step: "review" });
         },
-        [updateState, updateStep, completeSession]
+        [updateState]
+    );
+
+    const handleSubmit = useCallback(async () => {
+        updateState({ step: "processing" });
+        updateStep('processing');
+        try {
+            await completeSession();
+            updateState({ step: "complete" });
+        } catch {
+            updateState({ step: "error", error: "Failed to complete verification" });
+        }
+    }, [updateState, updateStep, completeSession]);
+
+    const handleRetake = useCallback(
+        (step: "scan_front" | "scan_back" | "capture_selfie") => {
+            if (step === "scan_front") {
+                updateState({ step: "scan_front", frontImage: null, frontScore: null });
+            } else if (step === "scan_back") {
+                updateState({ step: "scan_back", backImage: null, backScore: null });
+            } else {
+                updateState({ step: "capture_selfie", selfieImage: null, selfieScore: null });
+            }
+            setSubStep("instruction");
+        },
+        [updateState]
     );
 
     const handleCancel = useCallback(() => {
@@ -191,6 +201,21 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                         guidanceText="Keep a neutral expression"
                         onCapture={handleSelfieCapture}
                         onCancel={() => setSubStep("instruction")}
+                    />
+                );
+
+            case "review":
+                return (
+                    <SubmissionReview
+                        frontImage={state.frontImage!}
+                        backImage={state.backImage}
+                        selfieImage={state.selfieImage!}
+                        frontScore={state.frontScore ?? 0}
+                        backScore={state.backScore}
+                        selfieScore={state.selfieScore ?? 0}
+                        idTypeName={state.selectedIdType?.name ?? "ID"}
+                        onSubmit={handleSubmit}
+                        onRetake={handleRetake}
                     />
                 );
 

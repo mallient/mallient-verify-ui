@@ -20,7 +20,7 @@ const FRAME_BORDER_COLOR: Record<string, string> = {
 };
 
 export interface CameraCaptureProps {
-    onCapture: (imageData: string) => void;
+    onCapture: (imageData: string, score: number) => void;
     onCancel: () => void;
     mode: "document" | "barcode" | "selfie";
     instructions: string;
@@ -52,6 +52,7 @@ export const CameraCapture = ({
     const [barcodeDetected, setBarcodeDetected] = useState(false);
     const [feedbackState, setFeedbackState] = useState<FeedbackState | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
+    const [capturedScore, setCapturedScore] = useState<number>(0);
     const [reviewIssues, setReviewIssues] = useState<FeedbackIssue[]>([]);
 
     const getOverlayStyle = () => {
@@ -132,15 +133,17 @@ export const CameraCapture = ({
         const imageData = canvas.toDataURL("image/jpeg", 0.9);
 
         const allIssues = feedbackState?.allIssues ?? [];
+        const score = Math.round((feedbackState?.readinessScore ?? 1) * 100);
         cancelAnimationFrame(animFrameRef.current);
         stopCamera();
 
         const blockingIssues = allIssues.filter((i) => i.severity === "block");
         if (blockingIssues.length > 0) {
             setCapturedImage(imageData);
+            setCapturedScore(score);
             setReviewIssues(allIssues);
         } else {
-            onCapture(imageData);
+            onCapture(imageData, score);
         }
     }, [mode, stopCamera, onCapture, feedbackState]);
 
@@ -320,7 +323,7 @@ export const CameraCapture = ({
                             Retake
                         </Button>
                         <Button
-                            onClick={() => onCapture(capturedImage)}
+                            onClick={() => onCapture(capturedImage!, capturedScore)}
                             className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
                         >
                             Use Anyway

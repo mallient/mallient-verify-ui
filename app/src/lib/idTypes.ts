@@ -65,6 +65,7 @@ export type VerificationStep =
     | "scan_front"
     | "scan_back"
     | "capture_selfie"
+    | "review"
     | "processing"
     | "complete"
     | "error";
@@ -75,6 +76,9 @@ export interface VerificationState {
     frontImage: string | null;
     backImage: string | null;
     selfieImage: string | null;
+    frontScore: number | null;
+    backScore: number | null;
+    selfieScore: number | null;
     error: string | null;
 }
 
@@ -84,5 +88,8 @@ export const initialVerificationState: VerificationState = {
     frontImage: null,
     backImage: null,
     selfieImage: null,
+    frontScore: null,
+    backScore: null,
+    selfieScore: null,
     error: null,
 };
