@@ -1,48 +1,51 @@
-import { cn } from "@/lib/utils";
-import { useTheme } from "./theme-provider";
-import { Building2, Loader2 } from "lucide-react";
-
 type LoadingProps = {
     message?: string;
 };
 
 export const Loading = ({ message }: LoadingProps) => {
-    const { resolvedTheme } = useTheme();
     return (
-      <div className={cn(
-        "fixed inset-0 flex items-center justify-center",
-        resolvedTheme === "dark" ? "bg-black" : "bg-white"
-      )}>
-        <div className="flex flex-col items-center space-y-6">
-          <div className={cn(
-            "p-6 rounded-lg",
-            resolvedTheme === "dark" ? "bg-white/5" : "bg-black/5"
-          )}>
-            <Building2 className={cn(
-              "h-16 w-16",
-              resolvedTheme === "dark" ? "text-white/60" : "text-black/60"
-            )} />
+      <div
+        className="fixed inset-0 flex items-center justify-center"
+        style={{ backgroundColor: 'var(--color-background, #F6F9FC)' }}
+      >
+        <div className="flex flex-col items-center gap-6">
+          {/* Spinning ring */}
+          <div className="relative size-16">
+            <svg className="size-16 -rotate-90" viewBox="0 0 64 64" fill="none">
+              <circle
+                cx="32" cy="32" r="26"
+                stroke="currentColor"
+                strokeWidth="3"
+                className="opacity-10"
+                style={{ color: 'var(--color-primary, #635BFF)' }}
+              />
+              <circle
+                cx="32" cy="32" r="26"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeDasharray="163.4"
+                strokeDashoffset="122.5"
+                strokeLinecap="round"
+                style={{ color: 'var(--color-primary, #635BFF)' }}
+                className="animate-spin origin-center"
+              />
+            </svg>
           </div>
-          
-          <div className="flex items-center gap-3">
-            <Loader2 className={cn(
-              "h-5 w-5 animate-spin",
-              resolvedTheme === "dark" ? "text-white/60" : "text-black/60"
-            )} />
-            <p className={cn(
-              "text-sm font-light uppercase tracking-[0.2em]",
-              resolvedTheme === "dark" ? "text-white/80" : "text-black/80"
-            )}>
-              {message || "Loading"}
+
+          <div className="flex flex-col items-center gap-1">
+            <p
+              className="text-sm font-medium tracking-wide"
+              style={{ color: 'var(--color-text, #1A1A2E)' }}
+            >
+              {message || 'Loading'}
+            </p>
+            <p
+              className="text-xs"
+              style={{ color: 'var(--color-text, #1A1A2E)', opacity: 0.45 }}
+            >
+              Please wait...
             </p>
           </div>
-          
-          <p className={cn(
-            "text-xs font-light",
-            resolvedTheme === "dark" ? "text-white/40" : "text-black/40"
-          )}>
-            Please wait...
-          </p>
         </div>
       </div>
     );

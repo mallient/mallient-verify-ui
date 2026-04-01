@@ -17,7 +17,10 @@ interface BrandConfigProviderProps {
 }
 
 export function BrandConfigProvider({ children }: BrandConfigProviderProps) {
-  const [brandConfig, setBrandConfig] = useState<BrandConfig>(DEFAULT_BRAND_CONFIG);
+  const [brandConfig, setBrandConfig] = useState<BrandConfig>(() => {
+    applyThemeVariables(DEFAULT_BRAND_CONFIG);
+    return DEFAULT_BRAND_CONFIG;
+  });
   const [organization, setOrganization] = useState<OrganizationBrandingResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
