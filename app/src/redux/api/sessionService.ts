@@ -48,11 +48,9 @@ export class SessionService {
 
     private attemptConnect(): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            console.log(`[WS] Connecting to ${WS_URL} (attempt ${this.retryCount + 1}/${MAX_RETRIES + 1})`);
             this.socket = new WebSocket(WS_URL);
 
             this.socket.onopen = () => {
-                console.log("[WS] Connected to session service");
                 this.retryCount = 0;
                 this.handlers.onConnected?.();
                 resolve();
@@ -61,18 +59,11 @@ export class SessionService {
             this.socket.onmessage = (msg) => {
                 try {
                     const data: WebSocketEvent = JSON.parse(msg.data);
-                    console.log("[WS] Message received:", data);
 
                     // Resolve pending request if this is a response with sessionId
                     if (data.sessionId) {
                         const pending = this.pendingRequests.get(data.sessionId);
                         if (pending) {
-                            console.log(`[WS] Resolving pending request for session ${data.sessionId}:`, {
-                                type: data.type,
-                                isMobile: data.isMobile,
-                                activeDevice: data.activeDevice,
-                                status: data.status
-                            });
                             this.pendingRequests.delete(data.sessionId);
                             pending.resolve({ sessionId: data.sessionId, token: data.token });
                             return;
@@ -83,10 +74,6 @@ export class SessionService {
                     if (data.sessionId && this.pendingRequests.has("__create__")) {
                         const pending = this.pendingRequests.get("__create__");
                         if (pending) {
-                            console.log("[WS] Resolving createSession request:", {
-                                sessionId: data.sessionId,
-                                type: data.type
-                            });
                             this.pendingRequests.delete("__create__");
                             pending.resolve({ sessionId: data.sessionId, token: data.token });
                             return;
@@ -118,7 +105,6 @@ export class SessionService {
             };
 
             this.socket.onclose = (event) => {
-                console.log("[WS] Connection closed:", event.code, event.reason);
                 this.handlers.onClose?.(event);
                 this.connectPromise = null;
                 this.socket = null;
@@ -133,7 +119,6 @@ export class SessionService {
                 if (this.retryCount < MAX_RETRIES) {
                     this.retryCount++;
                     const delay = BASE_RETRY_DELAY * Math.pow(2, this.retryCount - 1);
-                    console.log(`[WS] Retrying in ${delay}ms...`);
                     setTimeout(() => {
                         this.attemptConnect().then(resolve).catch(reject);
                     }, delay);
@@ -148,7 +133,6 @@ export class SessionService {
      * Send a message over the WebSocket. Ensures connection is open first.
      */
     private async send(message: WebSocketMessage): Promise<void> {
-        console.log("[WS] Preparing to send message:", JSON.stringify(message));
         await this.connect(this.handlers);
 
         if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
@@ -156,7 +140,6 @@ export class SessionService {
             throw new Error("WebSocket is not connected");
         }
 
-        console.log("[WS] Sending message over WebSocket");
         this.socket.send(JSON.stringify(message));
     }
 
@@ -164,7 +147,6 @@ export class SessionService {
      * Create a new session via WebSocket.
      */
     public async createSession(domain: string, brandConfig?: string): Promise<SessionResponse> {
-        console.log(`[Session] Creating session for domain: ${domain}`);
         const message: WebSocketMessage = {
             action: "createSession",
             domain,
@@ -173,7 +155,6 @@ export class SessionService {
 
         return new Promise<SessionResponse>((resolve, reject) => {
             this.pendingRequests.set("__create__", { resolve, reject });
-            console.log("[Session] Pending request registered for __create__");
             this.send(message).catch((err) => {
                 console.error("[Session] Failed to send createSession:", err);
                 this.pendingRequests.delete("__create__");
@@ -189,7 +170,6 @@ export class SessionService {
         sessionId: string,
         updates: { status?: string; isMobile?: boolean; currentStep?: string },
     ): Promise<SessionResponse> {
-        console.log(`[Session] Updating session ${sessionId}:`, updates);
         const message: WebSocketMessage = {
             action: "updateSession",
             sessionId,
@@ -200,9 +180,28 @@ export class SessionService {
 
         return new Promise<SessionResponse>((resolve, reject) => {
             this.pendingRequests.set(sessionId, { resolve, reject });
-            console.log(`[Session] Pending request registered for ${sessionId}`);
             this.send(message).catch((err) => {
                 console.error("[Session] Failed to send updateSession:", err);
+                reject(err);
+            });
+        });
+    }
+
+    /**
+     * Complete an existing session via WebSocket.
+     * Sends the dedicated `completeSession` action to the backend.
+     */
+    public async completeSession(sessionId: string): Promise<SessionResponse> {
+        const message: WebSocketMessage = {
+            action: "completeSession",
+            sessionId,
+        };
+
+        return new Promise<SessionResponse>((resolve, reject) => {
+            this.pendingRequests.set(sessionId, { resolve, reject });
+            this.send(message).catch((err) => {
+                console.error("[Session] Failed to send completeSession:", err);
+                this.pendingRequests.delete(sessionId);
                 reject(err);
             });
         });

@@ -197,6 +197,7 @@ export interface SessionResponse {
   activeDevice?: string;
   currentStep?: string;
   isMobile?: boolean;
+  submissionId?: string;
 }
 
 /**
@@ -221,7 +222,7 @@ export type StepStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
  * The `action` field is used by API Gateway for route selection.
  */
 export interface WebSocketMessage {
-  action: 'createSession' | 'updateSession';
+  action: 'createSession' | 'updateSession' | 'completeSession';
   domain?: string;
   brandConfig?: string;
   sessionId?: string;
@@ -243,4 +244,94 @@ export interface WebSocketEvent {
   activeDevice?: string;
   currentStep?: string;
   [key: string]: unknown;
+}
+
+/**
+ * A single document included in a verification submission.
+ * Contains the S3 location of the already-uploaded document.
+ */
+export interface DocumentSubmission {
+  documentType: string;
+  documentId: string;
+  documentUrl: string;
+  s3Key: string;
+  imageData?: string;
+}
+
+/**
+ * Request body for POST /submissions/v1/{tenantId}
+ */
+export interface CreateSubmissionRequest {
+  tenantId: string;
+  submissionId?: string;
+  applicationId: string;
+  applicantId: string;
+  submissionType: string;
+  uploadSessionId: string;
+  documents: DocumentSubmission[];
+}
+
+/**
+ * Response returned from the document upload endpoint.
+ */
+export interface DocumentUploadResponse {
+  documentId: string;
+  documentUrl: string;
+  s3Key: string;
+}
+
+/**
+ * One entry in the generate-upload-urls request.
+ */
+export interface DocumentUploadRequest {
+  documentId: string;
+  documentType: string;
+  fileName: string;
+}
+
+/**
+ * Request body for POST /submissions/v1/{tenantId}/upload-urls
+ */
+export interface GenerateUploadUrlsRequest {
+  tenantId: string;
+  applicationId: string;
+  sessionId: string;
+  documents: DocumentUploadRequest[];
+}
+
+/**
+ * A single presigned S3 upload URL entry returned from the generate-upload-urls endpoint.
+ */
+export interface PresignedUploadUrl {
+  documentId: string;
+  documentType: string;
+  s3Key: string;
+  presignedUrl: string;
+  expiresAt: string;
+}
+
+/**
+ * The result object nested inside IBaseResult for the upload-urls response.
+ */
+export interface GenerateUploadUrlsResult {
+  sessionId: string;
+  uploads: PresignedUploadUrl[];
+}
+
+/**
+ * Full response from POST /submissions/v1/{tenantId}/upload-urls (IBaseResult wrapper).
+ */
+export interface GenerateUploadUrlsResponse {
+  isSuccessful: boolean;
+  errorMessage?: string;
+  result: GenerateUploadUrlsResult;
+}
+
+/**
+ * Response returned from CreateSubmission.
+ */
+export interface SubmissionResponse {
+  isSuccessful: boolean;
+  errorMessage?: string;
+  result?: unknown;
 }

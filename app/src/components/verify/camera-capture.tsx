@@ -168,7 +168,6 @@ export const CameraCapture = ({
 
         worker.onmessage = (e) => {
             if (e.data.type === "ready") {
-                console.log("Face worker ready");
             }
             if (e.data.type === "result") {
                 faceResultRef.current = e.data as FaceResult;
@@ -238,7 +237,6 @@ export const CameraCapture = ({
         if (mode !== "barcode" || !isReady || !videoRef.current) return;
 
         if (!("BarcodeDetector" in window)) {
-            console.log("BarcodeDetector not supported, falling back to manual capture");
             return;
         }
 

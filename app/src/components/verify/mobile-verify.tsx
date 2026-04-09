@@ -12,6 +12,8 @@ import { SubmissionReview } from "./submission-review";
 import { Button } from "../ui/button";
 import { useSession } from "@/context/sessionContext";
 import { useBrandConfig } from "@/context/brandConfigContext";
+import { SubmissionService } from "@/redux/api/submissionService";
+import type { CreateSubmissionRequest, DocumentSubmission, PresignedUploadUrl } from "@/redux/types/brandConfig";
 
 type SubStep = "instruction" | "capture" | "transition";
 
@@ -22,8 +24,8 @@ interface MobileVerifyProps {
 
 export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) => {
     const navigate = useNavigate();
-    const { brandName, updateStep, completeSession } = useSession();
-    const { brandConfig } = useBrandConfig();
+    const { brandName, sessionId, sessionToken, submissionId, updateStep, completeSession } = useSession();
+    const { brandConfig, organization } = useBrandConfig();
     const urlRedirectOnComplete = brandConfig.urlRedirectOnComplete || '/dashboard';
     const [state, setState] = useState<VerificationState>(initialVerificationState);
     const [subStep, setSubStep] = useState<SubStep>("instruction");
@@ -81,12 +83,78 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
         updateState({ step: "processing" });
         updateStep('processing');
         try {
+            const tenantId = organization?.organizationId ?? '';
+            const applicationId = organization?.applicationId ?? '';
+            const service = new SubmissionService(sessionToken ?? '');
+
+            // Build the list of document types that have captured images
+            const capturedDocs: Array<{ documentType: string; imageData: string }> = [
+                ...(state.frontImage ? [{ documentType: 'front_id', imageData: state.frontImage }] : []),
+                ...(state.backImage ? [{ documentType: 'back_id', imageData: state.backImage }] : []),
+                ...(state.selfieImage ? [{ documentType: 'selfie', imageData: state.selfieImage }] : []),
+            ];
+
+            console.log('[Submit] Captured documents:', capturedDocs.map(d => d.documentType));
+
+            // Step 1: Get presigned S3 upload URLs for all documents in one call
+            const presignedUrls = await service.generateUploadUrls(
+                tenantId,
+                applicationId,
+                submissionId ?? sessionId ?? '',
+                capturedDocs.map((d) => d.documentType),
+            );
+
+            console.log('[Submit] Received presigned URLs for:', presignedUrls);
+
+            // Step 2: Upload each image directly to its presigned S3 URL in parallel
+            await Promise.all(
+                presignedUrls.map(async (entry: PresignedUploadUrl) => {
+                    const doc = capturedDocs.find((d) => d.documentType === entry.documentType);
+                    if (!doc) {
+                        const err = new Error(`No image found for documentType: ${entry.documentType}`);
+                        console.error('[Upload] Missing image data:', err.message);
+                        throw err;
+                    }
+                    try {
+                        await service.uploadToPresignedUrl(entry.presignedUrl, doc.imageData);
+                        console.log(`[Upload] Successfully uploaded ${entry.documentType}`);
+                    } catch (err) {
+                        console.error(`[Upload] Failed to upload ${entry.documentType}:`, err);
+                        throw err;
+                    }
+                }),
+            );
+
+            // Step 3: Build the submission with S3 locations returned from the presigned URL step
+            const documents: DocumentSubmission[] = presignedUrls.map((entry: PresignedUploadUrl) => ({
+                documentType: entry.documentType,
+                documentId: entry.documentId,
+                documentUrl: '',
+                s3Key: entry.s3Key,
+            }));
+
+            const request: CreateSubmissionRequest = {
+                tenantId,
+                submissionId: submissionId ?? sessionId ?? '',
+                applicationId,
+                applicantId: '',
+                submissionType: 'identity_verification',
+                uploadSessionId: submissionId ?? sessionId ?? '',
+                documents,
+            };
+
+            const result = await service.createSubmission(tenantId, request);
+            if (!result.isSuccessful) {
+                throw new Error(result.errorMessage ?? 'Submission failed');
+            }
+
             await completeSession();
             updateState({ step: "complete" });
-        } catch {
+        } catch(error) {
+            console.error("Error during verification:", error);
             updateState({ step: "error", error: "Failed to complete verification" });
         }
-    }, [updateState, updateStep, completeSession]);
+    }, [updateState, updateStep, completeSession, organization, sessionId, sessionToken, submissionId, state.frontImage, state.backImage, state.selfieImage]);
 
     const handleRetake = useCallback(
         (step: "scan_front" | "scan_back" | "capture_selfie") => {
@@ -288,7 +356,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                             {state.error || "Something went wrong. Please try again."}
                         </p>
                         <Button
-                            onClick={() => setState(initialVerificationState)}
+                            onClick={() => updateState({ step: "review", error: null })}
                             variant={'outline'}
                         >
                             Try Again
