@@ -58,9 +58,18 @@ export const Verify = () => {
     }
   }, [sessionId, sessionToken, isMobileAccess, qrUrl, urlRedirectOnMobileContinue]);
 
-  // React to session completed event — redirect desktop
+  // React to session completed event — redirect desktop waiting screen
   useEffect(() => {
-    if (lastEvent?.type === 'completed' || lastEvent?.status === 'completed') {
+    const isComplete =
+      sessionStatus === 'completed' ||
+      lastEvent?.type === 'completed' ||
+      lastEvent?.type === 'completedSession' ||
+      lastEvent?.type === 'sessionCompleted' ||
+      lastEvent?.status === 'completed';
+
+    // Only redirect when desktop is passively watching mobile finish.
+    // isMobileAccess devices and the inline web-verify flow handle their own redirects.
+    if (isComplete && !isMobileAccess && mode !== 'web-verify') {
       const target = urlRedirectOnComplete;
       if (target.startsWith('http://') || target.startsWith('https://')) {
         window.location.href = target;
@@ -68,7 +77,7 @@ export const Verify = () => {
         navigate(target);
       }
     }
-  }, [lastEvent, urlRedirectOnComplete, navigate]);
+  }, [lastEvent, sessionStatus, isMobileAccess, mode, urlRedirectOnComplete, navigate]);
 
   const handleContinueOnWeb = async () => {
     await transferToWeb();

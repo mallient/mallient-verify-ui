@@ -11,6 +11,7 @@ import type {
 interface SessionContextState {
   sessionId: string | null;
   sessionToken: string | null;
+  submissionId: string | null;
   sessionStatus: SessionStatus;
   activeDevice: string | null;
   currentStep: string | null;
@@ -46,6 +47,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('initialized');
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
@@ -74,6 +76,18 @@ export function SessionProvider({ children }: SessionProviderProps) {
         status: event.status,
         currentStep: event.currentStep
       });
+    }
+
+    // Capture submissionId whenever the backend includes it in an event
+    if (event.submissionId && typeof event.submissionId === 'string') {
+      setSubmissionId(event.submissionId);
+    }
+
+    // Handle completion broadcast from completeSession action
+    if (event.type === 'completedSession' || event.type === 'sessionCompleted') {
+      console.log('[SessionContext] Session completed broadcast received');
+      setSessionStatus('completed');
+      return;
     }
 
     if (event.status) {
@@ -121,6 +135,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
           if (!cancelled) {
             setSessionId(response.sessionId);
             setSessionToken(response.token || response.sessionId);
+            if (response.submissionId) setSubmissionId(response.submissionId);
             setActiveDevice('mobile');
             setSessionStatus('active');
           }
@@ -131,6 +146,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
           if (!cancelled) {
             setSessionId(response.sessionId);
             setSessionToken(response.token || response.sessionId);
+            if (response.submissionId) setSubmissionId(response.submissionId);
             setActiveDevice('desktop');
             setSessionStatus('initialized');
           }
@@ -178,13 +194,14 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
   const completeSession = useCallback(async () => {
     if (!sessionId) return;
-    await sessionServiceRef.current.updateSession(sessionId, { status: 'completed' });
+    await sessionServiceRef.current.completeSession(sessionId);
     setSessionStatus('completed');
   }, [sessionId]);
 
   const value: SessionContextState = {
     sessionId,
     sessionToken,
+    submissionId,
     sessionStatus,
     activeDevice,
     currentStep,
