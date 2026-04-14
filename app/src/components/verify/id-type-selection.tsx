@@ -30,7 +30,7 @@ export const IdTypeSelection = ({ onSelect, onBack }: IdTypeSelectionProps) => {
     // ── Step 1: Country selection ───────────────────────────────────────
     if (!selectedCountry) {
         return (
-            <div className="flex flex-col flex-1 p-6">
+            <div className="flex flex-col flex-1 p-6 max-h-screen">
                 <div className="mb-4">
                     <h1 className="text-2xl font-bold mb-2">Country of Residence</h1>
                     <p className="text-gray-400 text-sm">
@@ -46,7 +46,7 @@ export const IdTypeSelection = ({ onSelect, onBack }: IdTypeSelectionProps) => {
                     className="mb-4 px-3 py-2 rounded-md bg-zinc-800 border border-zinc-700 text-white placeholder-zinc-500 text-sm focus:outline-none focus:border-zinc-500"
                 />
 
-                <div className="flex flex-col gap-2 flex-1 overflow-auto">
+                <div className="flex flex-col gap-2 flex-1 overflow-y-scroll">
                     {filteredCountries.length === 0 && (
                         <p className="text-gray-500 text-sm text-center mt-6">
                             No countries found for "{search}"

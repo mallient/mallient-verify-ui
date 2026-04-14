@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+    type Country,
     type IdType,
     type VerificationState,
     initialVerificationState,
@@ -35,8 +36,8 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
     }, []);
 
     const handleIdTypeSelect = useCallback(
-        (idType: IdType) => {
-            updateState({ selectedIdType: idType, step: "scan_front" });
+        (idType: IdType, country: Country) => {
+            updateState({ selectedIdType: idType, selectedCountry: country, step: "scan_front" });
             setSubStep("instruction");
             updateStep('scan_front');
         },
@@ -138,8 +139,10 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 submissionId: submissionId ?? sessionId ?? '',
                 applicationId,
                 applicantId: '',
-                submissionType: 'identity_verification',
+                submissionType: 'verify',
                 uploadSessionId: submissionId ?? sessionId ?? '',
+                selectedCountry: state.selectedCountry?.code ?? '',
+                selectedIdType: state.selectedIdType?.id ?? '',
                 documents,
             };
 
@@ -148,13 +151,18 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 throw new Error(result.errorMessage ?? 'Submission failed');
             }
 
-            await completeSession();
+            // Submission succeeded — stop the processing spinner immediately
             updateState({ step: "complete" });
+
+            // Notify the session service in the background (non-blocking)
+            completeSession().catch((err) =>
+                console.error('[Submit] completeSession failed (non-fatal):', err)
+            );
         } catch(error) {
             console.error("Error during verification:", error);
             updateState({ step: "error", error: "Failed to complete verification" });
         }
-    }, [updateState, updateStep, completeSession, organization, sessionId, sessionToken, submissionId, state.frontImage, state.backImage, state.selfieImage]);
+    }, [updateState, updateStep, completeSession, organization, sessionId, sessionToken, submissionId, state.frontImage, state.backImage, state.selfieImage, state.selectedCountry, state.selectedIdType]);
 
     const handleRetake = useCallback(
         (step: "scan_front" | "scan_back" | "capture_selfie") => {
@@ -320,14 +328,13 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                             Verification Complete!
                         </h1>
                         <p className="text-gray-400 text-center mb-8">
-                            Your identity has been successfully verified.
+                            You may now close this application.
                         </p>
-                        <Button
-                            onClick={handleComplete}
-                            variant={'default'}
-                           >
-                            Continue to {brandName || 'Dashboard'}
-                        </Button>
+                        {(onComplete || (brandConfig.urlRedirectOnComplete && !brandConfig.urlRedirectOnComplete.startsWith('/'))) && (
+                            <Button onClick={handleComplete} variant={'default'}>
+                                Continue to {brandName || 'Dashboard'}
+                            </Button>
+                        )}
                     </div>
                 );
 
