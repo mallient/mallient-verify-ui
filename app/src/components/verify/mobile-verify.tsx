@@ -138,7 +138,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 submissionId: submissionId ?? sessionId ?? '',
                 applicationId,
                 applicantId: '',
-                submissionType: 'identity_verification',
+                submissionType: 'verify',
                 uploadSessionId: submissionId ?? sessionId ?? '',
                 documents,
             };
