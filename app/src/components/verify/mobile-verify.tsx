@@ -148,8 +148,13 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 throw new Error(result.errorMessage ?? 'Submission failed');
             }
 
-            await completeSession();
+            // Submission succeeded — stop the processing spinner immediately
             updateState({ step: "complete" });
+
+            // Notify the session service in the background (non-blocking)
+            completeSession().catch((err) =>
+                console.error('[Submit] completeSession failed (non-fatal):', err)
+            );
         } catch(error) {
             console.error("Error during verification:", error);
             updateState({ step: "error", error: "Failed to complete verification" });
@@ -320,14 +325,13 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                             Verification Complete!
                         </h1>
                         <p className="text-gray-400 text-center mb-8">
-                            Your identity has been successfully verified.
+                            You may now close this application.
                         </p>
-                        <Button
-                            onClick={handleComplete}
-                            variant={'default'}
-                           >
-                            Continue to {brandName || 'Dashboard'}
-                        </Button>
+                        {(onComplete || (brandConfig.urlRedirectOnComplete && !brandConfig.urlRedirectOnComplete.startsWith('/'))) && (
+                            <Button onClick={handleComplete} variant={'default'}>
+                                Continue to {brandName || 'Dashboard'}
+                            </Button>
+                        )}
                     </div>
                 );
 
