@@ -268,6 +268,8 @@ export interface CreateSubmissionRequest {
   applicantId: string;
   submissionType: string;
   uploadSessionId: string;
+  selectedCountry: string;
+  selectedIdType: string;
   documents: DocumentSubmission[];
 }
 

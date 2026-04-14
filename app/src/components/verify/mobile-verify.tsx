@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+    type Country,
     type IdType,
     type VerificationState,
     initialVerificationState,
@@ -35,8 +36,8 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
     }, []);
 
     const handleIdTypeSelect = useCallback(
-        (idType: IdType) => {
-            updateState({ selectedIdType: idType, step: "scan_front" });
+        (idType: IdType, country: Country) => {
+            updateState({ selectedIdType: idType, selectedCountry: country, step: "scan_front" });
             setSubStep("instruction");
             updateStep('scan_front');
         },
@@ -140,6 +141,8 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 applicantId: '',
                 submissionType: 'verify',
                 uploadSessionId: submissionId ?? sessionId ?? '',
+                selectedCountry: state.selectedCountry?.code ?? '',
+                selectedIdType: state.selectedIdType?.id ?? '',
                 documents,
             };
 
@@ -159,7 +162,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
             console.error("Error during verification:", error);
             updateState({ step: "error", error: "Failed to complete verification" });
         }
-    }, [updateState, updateStep, completeSession, organization, sessionId, sessionToken, submissionId, state.frontImage, state.backImage, state.selfieImage]);
+    }, [updateState, updateStep, completeSession, organization, sessionId, sessionToken, submissionId, state.frontImage, state.backImage, state.selfieImage, state.selectedCountry, state.selectedIdType]);
 
     const handleRetake = useCallback(
         (step: "scan_front" | "scan_back" | "capture_selfie") => {

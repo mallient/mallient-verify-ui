@@ -8,6 +8,12 @@ export interface IdType {
     hasBarcode: boolean;
 }
 
+export interface Country {
+    code: string;   // ISO 3166-1 alpha-2
+    name: string;
+    flag: string;   // Unicode emoji flag
+}
+
 export const US_ID_TYPES: IdType[] = [
     {
         id: "drivers_license",
@@ -72,6 +78,7 @@ export type VerificationStep =
 
 export interface VerificationState {
     step: VerificationStep;
+    selectedCountry: Country | null;
     selectedIdType: IdType | null;
     frontImage: string | null;
     backImage: string | null;
@@ -84,6 +91,7 @@ export interface VerificationState {
 
 export const initialVerificationState: VerificationState = {
     step: "select_id_type",
+    selectedCountry: null,
     selectedIdType: null,
     frontImage: null,
     backImage: null,
