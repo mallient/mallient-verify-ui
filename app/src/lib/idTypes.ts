@@ -86,6 +86,7 @@ export interface VerificationState {
     frontScore: number | null;
     backScore: number | null;
     selfieScore: number | null;
+    livenessScore: number | null;
     error: string | null;
 }
 
@@ -99,5 +100,6 @@ export const initialVerificationState: VerificationState = {
     frontScore: null,
     backScore: null,
     selfieScore: null,
+    livenessScore: null,
     error: null,
 };

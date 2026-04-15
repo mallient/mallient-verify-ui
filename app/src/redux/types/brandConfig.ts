@@ -271,6 +271,7 @@ export interface CreateSubmissionRequest {
   selectedCountry: string;
   selectedIdType: string;
   documents: DocumentSubmission[];
+  livenessScore?: number;
 }
 
 /**
