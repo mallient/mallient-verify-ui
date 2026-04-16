@@ -145,7 +145,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 selectedCountry: state.selectedCountry?.code ?? '',
                 selectedIdType: state.selectedIdType?.id ?? '',
                 documents,
-                livenessScore: state.livenessScore ?? undefined,
+                livenessScore: state.livenessScore?.toString() ?? undefined,
             };
 
             const result = await service.createSubmission(tenantId, request);
@@ -290,6 +290,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                         frontScore={state.frontScore ?? 0}
                         backScore={state.backScore}
                         selfieScore={state.selfieScore ?? 0}
+                        livenessScore={Math.round((state.livenessScore ?? 0) * 100)}
                         idTypeName={state.selectedIdType?.name ?? "ID"}
                         onSubmit={handleSubmit}
                         onRetake={handleRetake}

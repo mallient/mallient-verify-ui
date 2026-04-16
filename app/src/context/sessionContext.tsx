@@ -143,6 +143,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
           // Desktop — create new session
           const domain = brandConfig.domain || window.location.hostname;
           const response = await service.createSession(domain);
+          console.log('Session created:', response);
           if (!cancelled) {
             setSessionId(response.sessionId);
             setSessionToken(response.token || response.sessionId);

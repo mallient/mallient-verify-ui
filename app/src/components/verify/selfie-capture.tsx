@@ -48,8 +48,8 @@ async function runLivenessInference(
     return e0 / (e0 + e1);
 }
 
-const LIVENESS_THRESHOLD = 0.85;
-const REQUIRED_LIVENESS_FRAMES = 3;
+const LIVENESS_THRESHOLD = 0.70;
+const REQUIRED_LIVENESS_FRAMES = 2;
 
 const BORDER_COLOR: Record<string, string> = {
     ready:   "border-green-500",
@@ -96,6 +96,7 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
     const livenessRunningRef  = useRef(false);
     const faceBboxRef         = useRef<{ xMin: number; yMin: number; xMax: number; yMax: number } | null>(null);
     const passingFramesRef    = useRef(0);
+    const passingScoresRef    = useRef<number[]>([]);
     const hasCapturedRef      = useRef(false);
     const livenessScoreRef    = useRef(0);
 
@@ -215,15 +216,19 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
                         .then(score => {
                             if (!mountedRef.current) return;
                             console.log('Liveness score:', score);
-                            livenessScoreRef.current = score;
                             setLivenessScore(score);
                             if (score >= LIVENESS_THRESHOLD) {
                                 passingFramesRef.current += 1;
+                                passingScoresRef.current.push(score);
                                 if (passingFramesRef.current >= REQUIRED_LIVENESS_FRAMES) {
+                                    const avg = passingScoresRef.current.reduce((a, b) => a + b, 0) / passingScoresRef.current.length;
+                                    console.log('Liveness passed — scores:', passingScoresRef.current, 'avg:', avg);
+                                    livenessScoreRef.current = avg;
                                     setLivenessState('passed');
                                 }
                             } else {
                                 passingFramesRef.current = 0;
+                                passingScoresRef.current = [];
                             }
                         })
                         .catch(e => console.error('Liveness inference error:', e))

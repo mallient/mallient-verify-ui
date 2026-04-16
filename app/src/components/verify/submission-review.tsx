@@ -7,6 +7,7 @@ export interface SubmissionReviewProps {
     frontScore: number;
     backScore: number | null;
     selfieScore: number;
+    livenessScore: number;
     idTypeName: string;
     onSubmit: () => void;
     onRetake: (step: "scan_front" | "scan_back" | "capture_selfie") => void;
@@ -19,10 +20,10 @@ function ScoreBadge({ score }: { score: number }) {
             : score >= 60
             ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/30"
             : "text-red-400 bg-red-500/10 border-red-500/30";
-    const label = score >= 80 ? "Excellent" : score >= 60 ? "Fair" : "Poor";
+    const label = score >= 80 ? "High Confidence" : score >= 60 ? "Moderate" : "Low Confidence";
     return (
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${colorClass}`}>
-            {score}% · {label}
+            {label}
         </span>
     );
 }
@@ -67,12 +68,13 @@ export const SubmissionReview = ({
     selfieImage,
     frontScore,
     backScore,
-    selfieScore,
+    selfieScore: _selfieScore,
+    livenessScore,
     idTypeName,
     onSubmit,
     onRetake,
 }: SubmissionReviewProps) => {
-    const scores = [frontScore, selfieScore, ...(backScore !== null ? [backScore] : [])];
+    const scores = [frontScore, livenessScore, ...(backScore !== null ? [backScore] : [])];
     const overallScore = Math.round(scores.reduce((s, n) => s + n, 0) / scores.length);
 
     return (
@@ -109,9 +111,9 @@ export const SubmissionReview = ({
                 )}
 
                 <ImageCard
-                    label="Selfie"
+                    label="Selfie — Liveness"
                     image={selfieImage}
-                    score={selfieScore}
+                    score={livenessScore}
                     aspect="square"
                     onRetake={() => onRetake("capture_selfie")}
                 />
