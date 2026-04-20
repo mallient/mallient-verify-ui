@@ -16,6 +16,7 @@ export interface FaceResult {
   confidence?: number;
   centerX?: number;
   centerY?: number;
+  bbox?: { xMin: number; yMin: number; xMax: number; yMax: number };
 }
 
 // ---------------------------------------------------------------------------

@@ -55,7 +55,7 @@ async function detect(bitmap: ImageBitmap) {
       return;
     }
 
-    self.postMessage({ type: 'result', status: 'ok', confidence: faces[0].score ?? 1, centerX: cx, centerY: cy });
+    self.postMessage({ type: 'result', status: 'ok', confidence: faces[0].score ?? 1, centerX: cx, centerY: cy, bbox: { xMin, yMin, xMax, yMax } });
   } catch {
     self.postMessage({ type: 'result', status: 'no_face' });
   }

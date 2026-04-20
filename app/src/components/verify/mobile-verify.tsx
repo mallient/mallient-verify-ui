@@ -8,6 +8,7 @@ import {
 } from "@/lib/idTypes";
 import { IdTypeSelection } from "./id-type-selection";
 import { CameraCapture } from "./camera-capture";
+import { SelfieCapture } from "./selfie-capture";
 import { ScanInstruction, FlipIdTransition, SelfieTransition } from "./scan-instructions";
 import { SubmissionReview } from "./submission-review";
 import { Button } from "../ui/button";
@@ -74,8 +75,8 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
     );
 
     const handleSelfieCapture = useCallback(
-        (imageData: string, score: number) => {
-            updateState({ selfieImage: imageData, selfieScore: score, step: "review" });
+        (imageData: string, score: number, livenessScore: number) => {
+            updateState({ selfieImage: imageData, selfieScore: score, livenessScore, step: "review" });
         },
         [updateState]
     );
@@ -144,6 +145,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 selectedCountry: state.selectedCountry?.code ?? '',
                 selectedIdType: state.selectedIdType?.id ?? '',
                 documents,
+                livenessScore: state.livenessScore?.toString() ?? undefined,
             };
 
             const result = await service.createSubmission(tenantId, request);
@@ -162,7 +164,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
             console.error("Error during verification:", error);
             updateState({ step: "error", error: "Failed to complete verification" });
         }
-    }, [updateState, updateStep, completeSession, organization, sessionId, sessionToken, submissionId, state.frontImage, state.backImage, state.selfieImage, state.selectedCountry, state.selectedIdType]);
+    }, [updateState, updateStep, completeSession, organization, sessionId, sessionToken, submissionId, state.frontImage, state.backImage, state.selfieImage, state.selectedCountry, state.selectedIdType, state.livenessScore]);
 
     const handleRetake = useCallback(
         (step: "scan_front" | "scan_back" | "capture_selfie") => {
@@ -271,10 +273,9 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                     );
                 }
                 return (
-                    <CameraCapture
-                        mode="selfie"
-                        instructions="Center your face"
-                        guidanceText="Keep a neutral expression"
+                    <SelfieCapture
+                        instructions="Center your face in the oval"
+                        guidanceText="Hold still while we verify your liveness"
                         onCapture={handleSelfieCapture}
                         onCancel={() => setSubStep("instruction")}
                     />
@@ -289,6 +290,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                         frontScore={state.frontScore ?? 0}
                         backScore={state.backScore}
                         selfieScore={state.selfieScore ?? 0}
+                        livenessScore={Math.round((state.livenessScore ?? 0) * 100)}
                         idTypeName={state.selectedIdType?.name ?? "ID"}
                         onSubmit={handleSubmit}
                         onRetake={handleRetake}

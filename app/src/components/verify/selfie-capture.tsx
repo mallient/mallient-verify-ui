@@ -1,9 +1,55 @@
 import { useRef, useState, useEffect, useCallback } from "react";
+import * as ort from 'onnxruntime-web';
 import { Button } from "../ui/button";
 import {
     analyseFrame,
     type FeedbackState, type FeedbackIssue, type FaceResult,
 } from "@/lib/imageFeedback";
+
+/** Crop face from video frame and run liveness ONNX inference. Returns score in [0,1]. */
+async function runLivenessInference(
+    session: ort.InferenceSession,
+    video: HTMLVideoElement,
+    canvas: HTMLCanvasElement,
+    bbox: { xMin: number; yMin: number; xMax: number; yMax: number },
+): Promise<number> {
+    const SCALE = 2.7;
+    const cx = (bbox.xMin + bbox.xMax) / 2;
+    const cy = (bbox.yMin + bbox.yMax) / 2;
+    const bw = (bbox.xMax - bbox.xMin) * SCALE;
+    const bh = (bbox.yMax - bbox.yMin) * SCALE;
+    const sx = Math.max(0, cx - bw / 2);
+    const sy = Math.max(0, cy - bh / 2);
+    const sw = Math.min(video.videoWidth - sx, bw);
+    const sh = Math.min(video.videoHeight - sy, bh);
+
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, 128, 128);
+    const id = ctx.getImageData(0, 0, 128, 128);
+
+    // Convert RGBA ImageData → CHW float32 [1, 3, 128, 128] (raw 0-255)
+    const float32 = new Float32Array(3 * 128 * 128);
+    for (let i = 0; i < 128 * 128; i++) {
+        float32[i]                 = id.data[i * 4];     // R
+        float32[128 * 128 + i]     = id.data[i * 4 + 1]; // G
+        float32[2 * 128 * 128 + i] = id.data[i * 4 + 2]; // B
+    }
+
+    const inputTensor = new ort.Tensor('float32', float32, [1, 3, 128, 128]);
+    const results = await session.run({ input: inputTensor });
+    const logits = results['output'].data as Float32Array;
+
+    // Softmax — class 0 is the liveness (live) score
+    const maxLogit = Math.max(logits[0], logits[1]);
+    const e0 = Math.exp(logits[0] - maxLogit);
+    const e1 = Math.exp(logits[1] - maxLogit);
+    return e0 / (e0 + e1);
+}
+
+const LIVENESS_THRESHOLD = 0.70;
+const REQUIRED_LIVENESS_FRAMES = 2;
 
 const BORDER_COLOR: Record<string, string> = {
     ready:   "border-green-500",
@@ -20,7 +66,7 @@ const FEEDBACK_BG: Record<string, string> = {
 };
 
 interface SelfieCaptureProps {
-    onCapture: (imageData: string, score: number) => void;
+    onCapture: (imageData: string, score: number, livenessScore: number) => void;
     onCancel: () => void;
     instructions: string;
     guidanceText?: string;
@@ -43,6 +89,21 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
     const [capturedImage, setCapturedImage]         = useState<string | null>(null);
     const [capturedScore, setCapturedScore]         = useState<number>(0);
     const [reviewIssues, setReviewIssues]           = useState<FeedbackIssue[]>([]);
+
+    // Liveness refs
+    const livenessSessionRef  = useRef<ort.InferenceSession | null>(null);
+    const livenessCanvasRef   = useRef<HTMLCanvasElement | null>(null);
+    const livenessRunningRef  = useRef(false);
+    const faceBboxRef         = useRef<{ xMin: number; yMin: number; xMax: number; yMax: number } | null>(null);
+    const passingFramesRef    = useRef(0);
+    const passingScoresRef    = useRef<number[]>([]);
+    const hasCapturedRef      = useRef(false);
+    const livenessScoreRef    = useRef(0);
+
+    // Liveness state
+    const [livenessState, setLivenessState]               = useState<'scanning' | 'passed'>('scanning');
+    const [livenessScore, setLivenessScore]               = useState(0);
+    const [capturedLivenessScore, setCapturedLivenessScore] = useState(0);
 
     const startCamera = useCallback(async () => {
         try {
@@ -89,6 +150,7 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
         worker.onmessage = (e) => {
             if (e.data.type === "result") {
                 faceResultRef.current = e.data as FaceResult;
+                faceBboxRef.current = e.data.status === 'ok' ? (e.data.bbox ?? null) : null;
                 workerBusyRef.current = false;
             }
             if (e.data.type === "error") {
@@ -103,6 +165,22 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
         worker.postMessage({ type: "init" });
         workerRef.current = worker;
         return () => { worker.terminate(); workerRef.current = null; };
+    }, []);
+
+    // Load liveness ONNX model
+    useEffect(() => {
+        livenessCanvasRef.current = document.createElement('canvas');
+        let cancelled = false;
+        ort.InferenceSession.create('/faceplugin-models/fr_liveness.onnx', {
+            executionProviders: ['wasm'],
+        }).then(session => {
+            if (!cancelled) livenessSessionRef.current = session;
+        }).catch(err => console.error('Failed to load liveness model:', err));
+        return () => {
+            cancelled = true;
+            livenessSessionRef.current = null;
+            livenessCanvasRef.current = null;
+        };
     }, []);
 
     // Feedback loop ~15 fps
@@ -122,12 +200,39 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
             if (!mountedRef.current) return;
             if (now - last >= INTERVAL) {
                 last = now;
-                // Send frame to worker when free
+                // Send frame to face worker when free
                 if (workerRef.current && !workerBusyRef.current && video.readyState >= 2) {
                     workerBusyRef.current = true;
                     createImageBitmap(video)
                         .then(bmp => workerRef.current?.postMessage({ type: "detect", bitmap: bmp }, [bmp]))
                         .catch(() => { workerBusyRef.current = false; });
+                }
+                // Run liveness inference when face bbox is available
+                const livenessCanvas = livenessCanvasRef.current;
+                const bbox = faceBboxRef.current;
+                if (livenessSessionRef.current && !livenessRunningRef.current && bbox && livenessCanvas && video.readyState >= 2) {
+                    livenessRunningRef.current = true;
+                    runLivenessInference(livenessSessionRef.current, video, livenessCanvas, bbox)
+                        .then(score => {
+                            if (!mountedRef.current) return;
+                            console.log('Liveness score:', score);
+                            setLivenessScore(score);
+                            if (score >= LIVENESS_THRESHOLD) {
+                                passingFramesRef.current += 1;
+                                passingScoresRef.current.push(score);
+                                if (passingFramesRef.current >= REQUIRED_LIVENESS_FRAMES) {
+                                    const avg = passingScoresRef.current.reduce((a, b) => a + b, 0) / passingScoresRef.current.length;
+                                    console.log('Liveness passed — scores:', passingScoresRef.current, 'avg:', avg);
+                                    livenessScoreRef.current = avg;
+                                    setLivenessState('passed');
+                                }
+                            } else {
+                                passingFramesRef.current = 0;
+                                passingScoresRef.current = [];
+                            }
+                        })
+                        .catch(e => console.error('Liveness inference error:', e))
+                        .finally(() => { livenessRunningRef.current = false; });
                 }
                 try {
                     const state = analyseFrame(
@@ -145,9 +250,12 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
     }, [isReady]);
 
     const captureImage = useCallback(() => {
+        if (hasCapturedRef.current) return;
+        hasCapturedRef.current = true;
+
         const video  = videoRef.current;
         const canvas = canvasRef.current;
-        if (!video || !canvas) return;
+        if (!video || !canvas) { hasCapturedRef.current = false; return; }
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
@@ -161,17 +269,26 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
 
         const allIssues = feedbackState?.allIssues ?? [];
         const score = Math.round((feedbackState?.readinessScore ?? 1) * 100);
+        const liveness = livenessScoreRef.current;
         cancelAnimationFrame(animFrameRef.current);
         stopCamera();
 
         if (allIssues.some(i => i.severity === "block")) {
             setCapturedImage(imageData);
             setCapturedScore(score);
+            setCapturedLivenessScore(liveness);
             setReviewIssues(allIssues);
         } else {
-            onCapture(imageData, score);
+            onCapture(imageData, score, liveness);
         }
     }, [feedbackState, stopCamera, onCapture]);
+
+    // Auto-capture when liveness passes
+    useEffect(() => {
+        if (livenessState === 'passed' && isReady && !capturedImage) {
+            captureImage();
+        }
+    }, [livenessState, isReady, capturedImage, captureImage]);
 
     const status      = feedbackState?.status ?? "scanning";
     const borderClass = BORDER_COLOR[status] ?? "border-white";
@@ -198,6 +315,10 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
                                 setCapturedImage(null);
                                 setReviewIssues([]);
                                 faceResultRef.current = null;
+                                hasCapturedRef.current = false;
+                                passingFramesRef.current = 0;
+                                faceBboxRef.current = null;
+                                setLivenessState('scanning');
                                 setIsReady(false);
                                 startCamera();
                             }}
@@ -207,7 +328,7 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
                             Retake
                         </Button>
                         <Button
-                            onClick={() => onCapture(capturedImage!, capturedScore)}
+                            onClick={() => onCapture(capturedImage!, capturedScore, capturedLivenessScore)}
                             className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
                         >
                             Use Anyway
@@ -265,31 +386,28 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
                 )}
             </div>
 
-            {/* Feedback banner */}
-            {feedbackState?.primaryIssue && (
-                <div className="absolute top-1/4 left-0 right-0 flex justify-center z-20 px-6">
-                    <div className={`px-4 py-2 rounded-full text-white text-sm font-medium ${FEEDBACK_BG[status] ?? "bg-black/60"}`}>
-                        {feedbackState.primaryIssue.message}
+            {/* Feedback banner & liveness badge */}
+            {isReady && (
+                <div className="absolute top-1/4 left-0 right-0 flex flex-col items-center gap-2 z-20 px-6">
+                    {feedbackState?.primaryIssue && (
+                        <div className={`px-4 py-2 rounded-full text-white text-sm font-medium ${FEEDBACK_BG[status] ?? "bg-black/60"}`}>
+                            {feedbackState.primaryIssue.message}
+                        </div>
+                    )}
+                    <div className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors duration-300 ${livenessState === 'passed' ? 'bg-green-500/90 text-white' : 'bg-black/60 text-gray-300'}`}>
+                        {livenessState === 'passed'
+                            ? '✓ Liveness confirmed — capturing…'
+                            : `Verifying liveness… ${Math.round(livenessScore * 100)}%`}
                     </div>
                 </div>
             )}
 
             {/* Controls */}
             <div className="absolute bottom-0 left-0 right-0 p-6 z-20" style={{ paddingBottom: "max(3rem, env(safe-area-inset-bottom))" }}>
-                <div className="flex items-center justify-center gap-4">
+                <div className="flex items-center justify-center">
                     <Button onClick={onCancel} variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20">
                         Cancel
                     </Button>
-                    {isReady && (
-                        <Button
-                            onClick={captureImage}
-                            disabled={status !== "ready"}
-                            className="w-16 h-16 rounded-full bg-zinc-900 border-4 border-blue-100 shadow-lg active:scale-95 transition-transform disabled:opacity-40"
-                            aria-label="Capture"
-                        >
-                            <div className="w-full h-full rounded-full bg-white hover:bg-gray-100" />
-                        </Button>
-                    )}
                 </div>
             </div>
         </div>
