@@ -60,12 +60,16 @@ export class SessionService {
                 try {
                     const data: WebSocketEvent = JSON.parse(msg.data);
 
+                    // updateSession broadcasts nest sessionId inside sessionData
+                    const sd = data.sessionData;
+                    const resolveSessionId = data.sessionId ?? sd?.sessionId as string | undefined;
+
                     // Resolve pending request if this is a response with sessionId
-                    if (data.sessionId) {
-                        const pending = this.pendingRequests.get(data.sessionId);
+                    if (resolveSessionId) {
+                        const pending = this.pendingRequests.get(resolveSessionId);
                         if (pending) {
-                            this.pendingRequests.delete(data.sessionId);
-                            pending.resolve({ sessionId: data.sessionId, token: data.token });
+                            this.pendingRequests.delete(resolveSessionId);
+                            pending.resolve({ sessionId: resolveSessionId, token: data.token });
                             return;
                         }
                     }
@@ -168,11 +172,12 @@ export class SessionService {
      */
     public async updateSession(
         sessionId: string,
+        sessionToken: string,
         updates: { status?: string; isMobile?: boolean; currentStep?: string },
     ): Promise<SessionResponse> {
         const message: WebSocketMessage = {
             action: "updateSession",
-            sessionId,
+            sessionToken,
             status: updates.status,
             isMobile: updates.isMobile,
             currentStep: updates.currentStep,

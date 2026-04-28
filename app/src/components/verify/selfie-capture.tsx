@@ -66,7 +66,7 @@ const FEEDBACK_BG: Record<string, string> = {
 };
 
 interface SelfieCaptureProps {
-    onCapture: (imageData: string, score: number, livenessScore: number) => void;
+    onCapture: (imageData: string, score: number, livenessScore: number, facialBiometricsToken: string | null) => void;
     onCancel: () => void;
     instructions: string;
     guidanceText?: string;
@@ -99,6 +99,10 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
     const passingScoresRef    = useRef<number[]>([]);
     const hasCapturedRef      = useRef(false);
     const livenessScoreRef    = useRef(0);
+
+    // Feature extraction refs
+    const featureSessionRef   = useRef<ort.InferenceSession | null>(null);
+    const featureCanvasRef    = useRef<HTMLCanvasElement | null>(null);
 
     // Liveness state
     const [livenessState, setLivenessState]               = useState<'scanning' | 'passed'>('scanning');
@@ -170,16 +174,24 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
     // Load liveness ONNX model
     useEffect(() => {
         livenessCanvasRef.current = document.createElement('canvas');
+        featureCanvasRef.current  = document.createElement('canvas');
         let cancelled = false;
         ort.InferenceSession.create('/faceplugin-models/fr_liveness.onnx', {
             executionProviders: ['wasm'],
         }).then(session => {
             if (!cancelled) livenessSessionRef.current = session;
         }).catch(err => console.error('Failed to load liveness model:', err));
+        ort.InferenceSession.create('/faceplugin-models/fr_feature.onnx', {
+            executionProviders: ['wasm'],
+        }).then(session => {
+            if (!cancelled) featureSessionRef.current = session;
+        }).catch(err => console.error('Failed to load feature model:', err));
         return () => {
             cancelled = true;
             livenessSessionRef.current = null;
             livenessCanvasRef.current = null;
+            featureSessionRef.current = null;
+            featureCanvasRef.current = null;
         };
     }, []);
 
@@ -249,7 +261,7 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
         return () => cancelAnimationFrame(animFrameRef.current);
     }, [isReady]);
 
-    const captureImage = useCallback(() => {
+    const captureImage = useCallback(async () => {
         if (hasCapturedRef.current) return;
         hasCapturedRef.current = true;
 
@@ -273,13 +285,56 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
         cancelAnimationFrame(animFrameRef.current);
         stopCamera();
 
+        // Extract facial biometrics token from face region
+        let facialBiometricsToken: string | null = null;
+        const bbox = faceBboxRef.current;
+        const featureSession = featureSessionRef.current;
+        const featureCanvas  = featureCanvasRef.current;
+        if (featureSession && featureCanvas && bbox) {
+            try {
+                const SIZE = 112;
+                featureCanvas.width  = SIZE;
+                featureCanvas.height = SIZE;
+                const fctx = featureCanvas.getContext('2d')!;
+                const bw = bbox.xMax - bbox.xMin;
+                const bh = bbox.yMax - bbox.yMin;
+                // Expand crop 40% around the bounding box for alignment context
+                const pad = 0.4;
+                const sx = Math.max(0, bbox.xMin - bw * pad);
+                const sy = Math.max(0, bbox.yMin - bh * pad);
+                const sw = Math.min(canvas.width  - sx, bw * (1 + pad * 2));
+                const sh = Math.min(canvas.height - sy, bh * (1 + pad * 2));
+                // Draw face region onto feature canvas (un-mirrored — canvas is already final)
+                fctx.save();
+                fctx.scale(-1, 1);
+                fctx.drawImage(canvas, sx, sy, sw, sh, -SIZE, 0, SIZE, SIZE);
+                fctx.restore();
+                const id = fctx.getImageData(0, 0, SIZE, SIZE);
+                // CHW float32 normalized to [-1, 1]
+                const float32 = new Float32Array(3 * SIZE * SIZE);
+                for (let i = 0; i < SIZE * SIZE; i++) {
+                    float32[i]                = (id.data[i * 4]     / 127.5) - 1;
+                    float32[SIZE * SIZE + i]  = (id.data[i * 4 + 1] / 127.5) - 1;
+                    float32[2 * SIZE * SIZE + i] = (id.data[i * 4 + 2] / 127.5) - 1;
+                }
+                const inputTensor = new ort.Tensor('float32', float32, [1, 3, SIZE, SIZE]);
+                const output = await featureSession.run({ input: inputTensor });
+                const embedding = output[Object.keys(output)[0]].data as Float32Array;
+                facialBiometricsToken = btoa(
+                    String.fromCharCode(...new Uint8Array(embedding.buffer))
+                );
+            } catch (err) {
+                console.error('[SelfieCapture] Feature extraction failed (non-fatal):', err);
+            }
+        }
+
         if (allIssues.some(i => i.severity === "block")) {
             setCapturedImage(imageData);
             setCapturedScore(score);
             setCapturedLivenessScore(liveness);
             setReviewIssues(allIssues);
         } else {
-            onCapture(imageData, score, liveness);
+            onCapture(imageData, score, liveness, facialBiometricsToken);
         }
     }, [feedbackState, stopCamera, onCapture]);
 
@@ -328,7 +383,7 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
                             Retake
                         </Button>
                         <Button
-                            onClick={() => onCapture(capturedImage!, capturedScore, capturedLivenessScore)}
+                            onClick={() => onCapture(capturedImage!, capturedScore, capturedLivenessScore, null)}
                             className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
                         >
                             Use Anyway
