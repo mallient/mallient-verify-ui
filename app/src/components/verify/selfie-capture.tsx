@@ -51,22 +51,31 @@ async function runLivenessInference(
 const LIVENESS_THRESHOLD = 0.70;
 const REQUIRED_LIVENESS_FRAMES = 2;
 
-const BORDER_COLOR: Record<string, string> = {
-    ready:   "border-green-500",
-    warning: "border-yellow-400",
-    error:   "border-red-500",
-    scanning:"border-white",
-};
-
-const FEEDBACK_BG: Record<string, string> = {
-    ready:   "bg-green-500/80",
-    warning: "bg-yellow-500/80",
-    error:   "bg-red-500/80",
-    scanning:"bg-black/60",
+const SELFIE_STATE_STYLE: Record<string, { border: string; glow: string; pill: string }> = {
+    scanning: {
+        border: "rgba(139,92,246,0.65)",
+        glow:   "0 0 0 9999px rgba(0,0,0,0.55), 0 0 28px 6px rgba(139,92,246,0.3)",
+        pill:   "bg-violet-950/70 border border-violet-500/40 text-violet-100 backdrop-blur-sm",
+    },
+    ready: {
+        border: "rgba(16,185,129,0.95)",
+        glow:   "0 0 0 9999px rgba(0,0,0,0.45), 0 0 40px 10px rgba(16,185,129,0.5)",
+        pill:   "bg-emerald-950/70 border border-emerald-500/40 text-emerald-100 backdrop-blur-sm",
+    },
+    warning: {
+        border: "rgba(245,158,11,0.95)",
+        glow:   "0 0 0 9999px rgba(0,0,0,0.55), 0 0 28px 6px rgba(245,158,11,0.4)",
+        pill:   "bg-amber-950/70 border border-amber-500/40 text-amber-100 backdrop-blur-sm",
+    },
+    error: {
+        border: "rgba(239,68,68,0.95)",
+        glow:   "0 0 0 9999px rgba(0,0,0,0.55), 0 0 28px 6px rgba(239,68,68,0.4)",
+        pill:   "bg-rose-950/70 border border-rose-500/40 text-rose-100 backdrop-blur-sm",
+    },
 };
 
 interface SelfieCaptureProps {
-    onCapture: (imageData: string, score: number, livenessScore: number) => void;
+    onCapture: (imageData: string, score: number, livenessScore: number, facialBiometricsToken: string | null) => void;
     onCancel: () => void;
     instructions: string;
     guidanceText?: string;
@@ -99,6 +108,10 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
     const passingScoresRef    = useRef<number[]>([]);
     const hasCapturedRef      = useRef(false);
     const livenessScoreRef    = useRef(0);
+
+    // Feature extraction refs
+    const featureSessionRef   = useRef<ort.InferenceSession | null>(null);
+    const featureCanvasRef    = useRef<HTMLCanvasElement | null>(null);
 
     // Liveness state
     const [livenessState, setLivenessState]               = useState<'scanning' | 'passed'>('scanning');
@@ -170,16 +183,24 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
     // Load liveness ONNX model
     useEffect(() => {
         livenessCanvasRef.current = document.createElement('canvas');
+        featureCanvasRef.current  = document.createElement('canvas');
         let cancelled = false;
         ort.InferenceSession.create('/faceplugin-models/fr_liveness.onnx', {
             executionProviders: ['wasm'],
         }).then(session => {
             if (!cancelled) livenessSessionRef.current = session;
         }).catch(err => console.error('Failed to load liveness model:', err));
+        ort.InferenceSession.create('/faceplugin-models/fr_feature.onnx', {
+            executionProviders: ['wasm'],
+        }).then(session => {
+            if (!cancelled) featureSessionRef.current = session;
+        }).catch(err => console.error('Failed to load feature model:', err));
         return () => {
             cancelled = true;
             livenessSessionRef.current = null;
             livenessCanvasRef.current = null;
+            featureSessionRef.current = null;
+            featureCanvasRef.current = null;
         };
     }, []);
 
@@ -249,7 +270,7 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
         return () => cancelAnimationFrame(animFrameRef.current);
     }, [isReady]);
 
-    const captureImage = useCallback(() => {
+    const captureImage = useCallback(async () => {
         if (hasCapturedRef.current) return;
         hasCapturedRef.current = true;
 
@@ -273,13 +294,56 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
         cancelAnimationFrame(animFrameRef.current);
         stopCamera();
 
+        // Extract facial biometrics token from face region
+        let facialBiometricsToken: string | null = null;
+        const bbox = faceBboxRef.current;
+        const featureSession = featureSessionRef.current;
+        const featureCanvas  = featureCanvasRef.current;
+        if (featureSession && featureCanvas && bbox) {
+            try {
+                const SIZE = 112;
+                featureCanvas.width  = SIZE;
+                featureCanvas.height = SIZE;
+                const fctx = featureCanvas.getContext('2d')!;
+                const bw = bbox.xMax - bbox.xMin;
+                const bh = bbox.yMax - bbox.yMin;
+                // Expand crop 40% around the bounding box for alignment context
+                const pad = 0.4;
+                const sx = Math.max(0, bbox.xMin - bw * pad);
+                const sy = Math.max(0, bbox.yMin - bh * pad);
+                const sw = Math.min(canvas.width  - sx, bw * (1 + pad * 2));
+                const sh = Math.min(canvas.height - sy, bh * (1 + pad * 2));
+                // Draw face region onto feature canvas (un-mirrored — canvas is already final)
+                fctx.save();
+                fctx.scale(-1, 1);
+                fctx.drawImage(canvas, sx, sy, sw, sh, -SIZE, 0, SIZE, SIZE);
+                fctx.restore();
+                const id = fctx.getImageData(0, 0, SIZE, SIZE);
+                // CHW float32 normalized to [-1, 1]
+                const float32 = new Float32Array(3 * SIZE * SIZE);
+                for (let i = 0; i < SIZE * SIZE; i++) {
+                    float32[i]                = (id.data[i * 4]     / 127.5) - 1;
+                    float32[SIZE * SIZE + i]  = (id.data[i * 4 + 1] / 127.5) - 1;
+                    float32[2 * SIZE * SIZE + i] = (id.data[i * 4 + 2] / 127.5) - 1;
+                }
+                const inputTensor = new ort.Tensor('float32', float32, [1, 3, SIZE, SIZE]);
+                const output = await featureSession.run({ input: inputTensor });
+                const embedding = output[Object.keys(output)[0]].data as Float32Array;
+                facialBiometricsToken = btoa(
+                    String.fromCharCode(...new Uint8Array(embedding.buffer))
+                );
+            } catch (err) {
+                console.error('[SelfieCapture] Feature extraction failed (non-fatal):', err);
+            }
+        }
+
         if (allIssues.some(i => i.severity === "block")) {
             setCapturedImage(imageData);
             setCapturedScore(score);
             setCapturedLivenessScore(liveness);
             setReviewIssues(allIssues);
         } else {
-            onCapture(imageData, score, liveness);
+            onCapture(imageData, score, liveness, facialBiometricsToken);
         }
     }, [feedbackState, stopCamera, onCapture]);
 
@@ -290,8 +354,8 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
         }
     }, [livenessState, isReady, capturedImage, captureImage]);
 
-    const status      = feedbackState?.status ?? "scanning";
-    const borderClass = BORDER_COLOR[status] ?? "border-white";
+    const status     = feedbackState?.status ?? "scanning";
+    const ovalStyle  = SELFIE_STATE_STYLE[livenessState === 'passed' ? 'ready' : status] ?? SELFIE_STATE_STYLE.scanning;
 
     // ── Review screen ─────────────────────────────────────────────────────
     if (capturedImage) {
@@ -328,7 +392,7 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
                             Retake
                         </Button>
                         <Button
-                            onClick={() => onCapture(capturedImage!, capturedScore, capturedLivenessScore)}
+                            onClick={() => onCapture(capturedImage!, capturedScore, capturedLivenessScore, null)}
                             className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
                         >
                             Use Anyway
@@ -368,12 +432,13 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
             <div className="absolute inset-0 flex items-center justify-center">
                 <div className="absolute inset-0 bg-black/50" />
                 <div
-                    className={`relative border-2 ${borderClass} bg-transparent z-10 transition-colors duration-300`}
+                    className="relative bg-transparent z-10 transition-all duration-500"
                     style={{
                         width: "80%",
                         height: "70%",
                         borderRadius: "50%",
-                        boxShadow: "0 0 0 9999px rgba(0,0,0,0.5)",
+                        border: `2.5px solid ${ovalStyle.border}`,
+                        boxShadow: ovalStyle.glow,
                     }}
                 />
             </div>
@@ -386,19 +451,41 @@ export const SelfieCapture = ({ onCapture, onCancel, instructions, guidanceText 
                 )}
             </div>
 
-            {/* Feedback banner & liveness badge */}
+            {/* Feedback banner & liveness indicator */}
             {isReady && (
-                <div className="absolute top-1/4 left-0 right-0 flex flex-col items-center gap-2 z-20 px-6">
-                    {feedbackState?.primaryIssue && (
-                        <div className={`px-4 py-2 rounded-full text-white text-sm font-medium ${FEEDBACK_BG[status] ?? "bg-black/60"}`}>
-                            {feedbackState.primaryIssue.message}
+                <div className="absolute top-1/4 left-0 right-0 flex flex-col items-center gap-3 z-20 px-6">
+                    {feedbackState?.primaryIssue && livenessState !== 'passed' && (
+                        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow-lg ${SELFIE_STATE_STYLE[status]?.pill ?? "bg-black/60 text-white"}`}>
+                            {status === "warning" && (
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                                </svg>
+                            )}
+                            {status === "error" && (
+                                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            )}
+                            <span>{feedbackState.primaryIssue.message}</span>
                         </div>
                     )}
-                    <div className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors duration-300 ${livenessState === 'passed' ? 'bg-green-500/90 text-white' : 'bg-black/60 text-gray-300'}`}>
-                        {livenessState === 'passed'
-                            ? '✓ Liveness confirmed — capturing…'
-                            : `Verifying liveness… ${Math.round(livenessScore * 100)}%`}
-                    </div>
+                    {livenessState === 'passed' ? (
+                        <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/90 backdrop-blur-sm text-white text-sm font-semibold shadow-lg shadow-emerald-500/30">
+                            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Liveness confirmed — capturing…
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/50 backdrop-blur-sm border border-violet-500/30 text-violet-100 text-sm">
+                            <span className="flex gap-1 items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                            </span>
+                            <span>Verifying your face…</span>
+                        </div>
+                    )}
                 </div>
             )}
 

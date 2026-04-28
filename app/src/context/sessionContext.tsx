@@ -68,42 +68,46 @@ export function SessionProvider({ children }: SessionProviderProps) {
     console.log('[SessionContext] Received WebSocket event:', event);
     setLastEvent(event);
 
+    // updateSession broadcasts nest fields inside sessionData; flatten for uniform handling
+    const sd = event.sessionData;
+    const eventType = event.type || event.action;
+    const status = event.status ?? sd?.status as string | undefined;
+    const activeDevice = event.activeDevice ?? sd?.activeDevice as string | undefined;
+    const isMobile = event.isMobile ?? sd?.isMobile as boolean | undefined;
+    const currentStep = event.currentStep ?? sd?.currentStep as string | undefined;
+    const submissionId = event.submissionId ?? sd?.submissionId as string | undefined;
+
     // Handle session updates
-    if (event.type === 'updatedSession' || event.type === 'sessionUpdated') {
-      console.log('[SessionContext] Session updated:', {
-        isMobile: event.isMobile,
-        activeDevice: event.activeDevice,
-        status: event.status,
-        currentStep: event.currentStep
-      });
+    if (eventType === 'updatedSession' || eventType === 'sessionUpdated') {
+      console.log('[SessionContext] Session updated:', { isMobile, activeDevice, status, currentStep });
     }
 
     // Capture submissionId whenever the backend includes it in an event
-    if (event.submissionId && typeof event.submissionId === 'string') {
-      setSubmissionId(event.submissionId);
+    if (submissionId && typeof submissionId === 'string') {
+      setSubmissionId(submissionId);
     }
 
     // Handle completion broadcast from completeSession action
-    if (event.type === 'completedSession' || event.type === 'sessionCompleted') {
+    if (eventType === 'completedSession' || eventType === 'sessionCompleted') {
       console.log('[SessionContext] Session completed broadcast received');
       setSessionStatus('completed');
       return;
     }
 
-    if (event.status) {
-      setSessionStatus(event.status as SessionStatus);
+    if (status) {
+      setSessionStatus(status as SessionStatus);
     }
-    if (event.activeDevice) {
-      setActiveDevice(event.activeDevice);
+    if (activeDevice) {
+      setActiveDevice(activeDevice);
     }
     // If isMobile flag is set to true, update device to mobile
-    if (event.isMobile === true) {
+    if (isMobile === true) {
       console.log('[SessionContext] Session transferred to mobile device');
       setActiveDevice('mobile');
       setSessionStatus('active');
     }
-    if (event.currentStep) {
-      setCurrentStep(event.currentStep);
+    if (currentStep) {
+      setCurrentStep(currentStep);
     }
   }, []);
 
@@ -129,9 +133,12 @@ export function SessionProvider({ children }: SessionProviderProps) {
           },
         });
 
-        if (isMobileAccess && sessionIdFromUrl) {
+        if (isMobileAccess && sessionIdFromUrl && tokenFromUrl) {
           // Mobile device — update existing session to transfer to mobile
-          const response = await service.updateSession(sessionIdFromUrl, { isMobile: true });
+          const response = await service.updateSession(sessionIdFromUrl, tokenFromUrl, {
+            status: 'active',
+            isMobile: true,
+          });
           if (!cancelled) {
             setSessionId(response.sessionId);
             setSessionToken(response.token || response.sessionId);
@@ -171,33 +178,34 @@ export function SessionProvider({ children }: SessionProviderProps) {
   }, [isMobileAccess, sessionIdFromUrl, brandConfig.domain, handleWsMessage]);
 
   const transferToMobile = useCallback(async () => {
-    if (!sessionId) return;
-    const response = await sessionServiceRef.current.updateSession(sessionId, { isMobile: true });
+    if (!sessionId || !sessionToken) return;
+    const response = await sessionServiceRef.current.updateSession(sessionId, sessionToken, { isMobile: true });
     setSessionToken(response.token || response.sessionId);
     setActiveDevice('mobile');
     setSessionStatus('active');
-  }, [sessionId]);
+  }, [sessionId, sessionToken]);
 
   const transferToWeb = useCallback(async () => {
-    if (!sessionId) return;
-    const response = await sessionServiceRef.current.updateSession(sessionId, { isMobile: false });
+    if (!sessionId || !sessionToken) return;
+    const response = await sessionServiceRef.current.updateSession(sessionId, sessionToken, { isMobile: false });
     setSessionToken(response.token || response.sessionId);
     setActiveDevice('desktop');
     setSessionStatus('active');
-  }, [sessionId]);
+  }, [sessionId, sessionToken]);
 
   const updateStep = useCallback(async (step: string) => {
-    if (!sessionId) return;
-    await sessionServiceRef.current.updateSession(sessionId, { currentStep: step });
+    if (!sessionId || !sessionToken) return;
+    await sessionServiceRef.current.updateSession(sessionId, sessionToken, { currentStep: step });
     setCurrentStep(step);
     setSessionStatus('in_progress');
-  }, [sessionId]);
+  }, [sessionId, sessionToken]);
 
   const completeSession = useCallback(async () => {
-    if (!sessionId) return;
-    await sessionServiceRef.current.completeSession(sessionId);
+    const id = sessionId ?? sessionIdFromUrl;
+    if (!id) return;
+    await sessionServiceRef.current.completeSession(id);
     setSessionStatus('completed');
-  }, [sessionId]);
+  }, [sessionId, sessionIdFromUrl]);
 
   const value: SessionContextState = {
     sessionId,

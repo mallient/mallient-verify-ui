@@ -75,8 +75,8 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
     );
 
     const handleSelfieCapture = useCallback(
-        (imageData: string, score: number, livenessScore: number) => {
-            updateState({ selfieImage: imageData, selfieScore: score, livenessScore, step: "review" });
+        (imageData: string, score: number, livenessScore: number, facialBiometricsToken: string | null) => {
+            updateState({ selfieImage: imageData, selfieScore: score, livenessScore, facialBiometricsToken, step: "review" });
         },
         [updateState]
     );
@@ -139,14 +139,13 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 tenantId,
                 submissionId: submissionId ?? sessionId ?? '',
                 applicationId,
-                applicantId: '',
+                applicantId: Guid().toString(),
                 submissionType: 'verify',
                 uploadSessionId: submissionId ?? sessionId ?? '',
                 selectedCountry: state.selectedCountry?.code ?? '',
                 selectedIdType: state.selectedIdType?.id ?? '',
                 documents,
-                livenessScore: state.livenessScore?.toString() ?? undefined,
-            };
+                livenessScore: state.livenessScore?.toString() ?? undefined,                facialBiometricsToken: state.facialBiometricsToken ?? undefined,            };
 
             const result = await service.createSubmission(tenantId, request);
             if (!result.isSuccessful) {

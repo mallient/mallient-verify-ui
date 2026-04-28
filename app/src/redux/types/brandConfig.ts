@@ -226,6 +226,7 @@ export interface WebSocketMessage {
   domain?: string;
   brandConfig?: string;
   sessionId?: string;
+  sessionToken?: string;
   status?: string;
   isMobile?: boolean;
   currentStep?: string;
@@ -236,6 +237,7 @@ export interface WebSocketMessage {
  */
 export interface WebSocketEvent {
   type: string;
+  action?: string;
   sessionId?: string;
   token?: string;
   error?: string;
@@ -243,6 +245,7 @@ export interface WebSocketEvent {
   isMobile?: boolean;
   activeDevice?: string;
   currentStep?: string;
+  sessionData?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -272,6 +275,7 @@ export interface CreateSubmissionRequest {
   selectedIdType: string;
   documents: DocumentSubmission[];
   livenessScore?: string;
+  facialBiometricsToken?: string;
 }
 
 /**

@@ -5,18 +5,31 @@ import {
     type FeedbackState, type FeedbackIssue, type FaceResult,
 } from "@/lib/imageFeedback";
 
-const FEEDBACK_BG: Record<string, string> = {
-    ready:    "bg-green-500/80",
-    warning:  "bg-yellow-500/80",
-    error:    "bg-red-500/80",
-    scanning: "bg-black/60",
-};
-
-const FRAME_BORDER_COLOR: Record<string, string> = {
-    ready:    "border-green-500",
-    warning:  "border-yellow-400",
-    error:    "border-red-500",
-    scanning: "border-white",
+const STATE_STYLE: Record<string, { border: string; glow: string; cornerClass: string; pill: string }> = {
+    scanning: {
+        border:      "rgba(139,92,246,0.7)",
+        glow:        "0 0 0 9999px rgba(0,0,0,0.55), 0 0 24px 6px rgba(139,92,246,0.35)",
+        cornerClass: "border-violet-400",
+        pill:        "bg-violet-950/70 border border-violet-500/40 text-violet-100 backdrop-blur-sm",
+    },
+    ready: {
+        border:      "rgba(16,185,129,0.95)",
+        glow:        "0 0 0 9999px rgba(0,0,0,0.45), 0 0 36px 8px rgba(16,185,129,0.5)",
+        cornerClass: "border-emerald-400",
+        pill:        "bg-emerald-950/70 border border-emerald-500/40 text-emerald-100 backdrop-blur-sm",
+    },
+    warning: {
+        border:      "rgba(245,158,11,0.95)",
+        glow:        "0 0 0 9999px rgba(0,0,0,0.55), 0 0 28px 6px rgba(245,158,11,0.45)",
+        cornerClass: "border-amber-400",
+        pill:        "bg-amber-950/70 border border-amber-500/40 text-amber-100 backdrop-blur-sm",
+    },
+    error: {
+        border:      "rgba(239,68,68,0.95)",
+        glow:        "0 0 0 9999px rgba(0,0,0,0.55), 0 0 28px 6px rgba(239,68,68,0.45)",
+        cornerClass: "border-rose-400",
+        pill:        "bg-rose-950/70 border border-rose-500/40 text-rose-100 backdrop-blur-sm",
+    },
 };
 
 export interface CameraCaptureProps {
@@ -275,11 +288,9 @@ export const CameraCapture = ({
         };
     }, [mode, isReady, captureImage]);
 
-    const overlayStyle = getOverlayStyle();
-    const feedbackStatus = feedbackState?.status ?? "scanning";
-    const frameBorderClass = barcodeDetected
-        ? "border-green-500"
-        : (FRAME_BORDER_COLOR[feedbackStatus] ?? "border-white");
+    const overlayStyle  = getOverlayStyle();
+    const feedbackStatus = barcodeDetected ? "ready" : (feedbackState?.status ?? "scanning");
+    const stateStyle     = STATE_STYLE[feedbackStatus] ?? STATE_STYLE.scanning;
 
     // ── Review screen ────────────────────────────────────────────────────────
     if (capturedImage) {
@@ -370,20 +381,21 @@ export const CameraCapture = ({
                 <div className="absolute inset-0 bg-black/50" />
 
                 <div
-                    className={`relative border-2 ${frameBorderClass} bg-transparent z-10`}
+                    className="relative bg-transparent z-10 transition-all duration-500"
                     style={{
-                        width: overlayStyle.width,
-                        height: overlayStyle.height,
+                        width:        overlayStyle.width,
+                        height:       overlayStyle.height,
                         borderRadius: overlayStyle.borderRadius,
-                        boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5)",
+                        border:       `2.5px solid ${stateStyle.border}`,
+                        boxShadow:    stateStyle.glow,
                     }}
                 >
                     {mode !== "selfie" && (
                         <>
-                            <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-white rounded-tl" />
-                            <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-white rounded-tr" />
-                            <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-white rounded-bl" />
-                            <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-white rounded-br" />
+                            <div className={`absolute -top-1 -left-1 w-8 h-8 border-t-[3px] border-l-[3px] ${stateStyle.cornerClass} rounded-tl transition-colors duration-500`} />
+                            <div className={`absolute -top-1 -right-1 w-8 h-8 border-t-[3px] border-r-[3px] ${stateStyle.cornerClass} rounded-tr transition-colors duration-500`} />
+                            <div className={`absolute -bottom-1 -left-1 w-8 h-8 border-b-[3px] border-l-[3px] ${stateStyle.cornerClass} rounded-bl transition-colors duration-500`} />
+                            <div className={`absolute -bottom-1 -right-1 w-8 h-8 border-b-[3px] border-r-[3px] ${stateStyle.cornerClass} rounded-br transition-colors duration-500`} />
                         </>
                     )}
                 </div>
@@ -407,21 +419,42 @@ export const CameraCapture = ({
             {/* Feedback banner */}
             {feedbackState?.primaryIssue && mode !== "barcode" && (
                 <div className="absolute top-1/4 left-0 right-0 flex justify-center z-20 px-6">
-                    <div
-                        className={`px-4 py-2 rounded-full text-white text-sm font-medium text-center ${
-                            FEEDBACK_BG[feedbackStatus] ?? "bg-black/60"
-                        }`}
-                    >
-                        {feedbackState.primaryIssue.message}
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium shadow-lg ${stateStyle.pill}`}>
+                        {feedbackStatus === "ready" && (
+                            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        )}
+                        {feedbackStatus === "warning" && (
+                            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                            </svg>
+                        )}
+                        {feedbackStatus === "error" && (
+                            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        )}
+                        {feedbackStatus === "scanning" && (
+                            <span className="flex gap-0.5 items-center">
+                                <span className="w-1 h-1 rounded-full bg-violet-300 animate-bounce" style={{ animationDelay: "0ms" }} />
+                                <span className="w-1 h-1 rounded-full bg-violet-300 animate-bounce" style={{ animationDelay: "120ms" }} />
+                                <span className="w-1 h-1 rounded-full bg-violet-300 animate-bounce" style={{ animationDelay: "240ms" }} />
+                            </span>
+                        )}
+                        <span>{feedbackState.primaryIssue.message}</span>
                     </div>
                 </div>
             )}
 
             {/* Barcode detection indicator */}
             {mode === "barcode" && barcodeDetected && (
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
-                    <div className="bg-green-500 text-white px-4 py-2 rounded-full text-sm font-medium">
-                        Barcode Detected!
+                <div className="absolute top-1/4 left-0 right-0 flex justify-center z-30 px-6">
+                    <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/90 backdrop-blur-sm text-white text-sm font-semibold shadow-lg shadow-emerald-500/30 animate-pulse">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Barcode detected — capturing…
                     </div>
                 </div>
             )}
@@ -441,13 +474,15 @@ export const CameraCapture = ({
                     </Button>
 
                     {isReady && (
-                        <Button
+                        <button
                             onClick={captureImage}
-                            className="w-16 h-16 rounded-full bg-zinc-900 border border-4 border-blue-100 shadow-lg active:scale-95 transition-transform"
                             aria-label="Capture"
+                            className="relative w-20 h-20 rounded-full flex items-center justify-center active:scale-95 transition-transform focus:outline-none"
+                            style={{ boxShadow: "0 0 0 3px rgba(255,255,255,0.15), 0 0 24px 4px rgba(139,92,246,0.4)" }}
                         >
-                            <div className="w-full h-full rounded-full bg-white hover:bg-gray-100" />
-                        </Button>
+                            <div className="absolute inset-0 rounded-full border-2 border-white/40" />
+                            <div className="w-14 h-14 rounded-full bg-white" />
+                        </button>
                     )}
                 </div>
             </div>
