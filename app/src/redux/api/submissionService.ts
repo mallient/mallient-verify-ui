@@ -86,10 +86,13 @@ export class SubmissionService extends BaseService {
   public async createSubmission(
     tenantId: string,
     request: CreateSubmissionRequest,
+    token?: string,
   ): Promise<SubmissionResponse> {
     const response: SubmissionResponse = await BaseService.PostData(
       `${API_BASE}/organizations/v1/tenant/${encodeURIComponent(tenantId)}/submissions`,
       request,
+      undefined,
+      token,
     );
     return response;
   }

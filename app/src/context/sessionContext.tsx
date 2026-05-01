@@ -1,12 +1,20 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { SessionService } from '@/redux/api/sessionService';
-import { useBrandConfig } from './brandConfigContext';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from "react";
+import { useSearchParams } from "react-router-dom";
+import { SessionService } from "@/redux/api/sessionService";
+import { useBrandConfig } from "./brandConfigContext";
 import type {
   SessionStatus,
   StepData,
   WebSocketEvent,
-} from '@/redux/types/brandConfig';
+} from "@/redux/types/brandConfig";
 
 interface SessionContextState {
   sessionId: string | null;
@@ -29,13 +37,63 @@ interface SessionContextState {
   updateStep: (currentStep: string) => Promise<void>;
   /** Complete the session */
   completeSession: () => Promise<void>;
+  /** Write session info to sessionStorage (for cross-tab/device persistence) */
+  writeSessionStorage: (id: string, token: string) => void;
+  /** Read session info from sessionStorage */
+  readSessionStorage: () => {
+    sessionId: string | null;
+    sessionToken: string | null;
+  };
+  /** Clear session info from sessionStorage */
+  clearSessionStorage: () => void;
   /** Last WebSocket event received */
   lastEvent: WebSocketEvent | null;
   /** Whether the WebSocket is currently connected */
   wsConnected: boolean;
 }
 
-const SessionContext = createContext<SessionContextState | undefined>(undefined);
+const SESSION_STORAGE_ID_KEY = "mallient_session_id";
+const SESSION_STORAGE_TOKEN_KEY = "mallient_session_token";
+
+export function readSessionStorage(): {
+  sessionId: string | null;
+  sessionToken: string | null;
+} {
+  try {
+    return {
+      sessionId: sessionStorage.getItem(SESSION_STORAGE_ID_KEY),
+      sessionToken: sessionStorage.getItem(SESSION_STORAGE_TOKEN_KEY),
+    };
+  } catch {
+    return { sessionId: null, sessionToken: null };
+  }
+}
+
+export function writeSessionStorage(id: string, token: string): void {
+  console.log("[SessionContext] Writing session to sessionStorage:", {
+    id,
+    token: "***",
+  });
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_ID_KEY, id);
+    sessionStorage.setItem(SESSION_STORAGE_TOKEN_KEY, token);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearSessionStorage(): void {
+  try {
+    sessionStorage.removeItem(SESSION_STORAGE_ID_KEY);
+    sessionStorage.removeItem(SESSION_STORAGE_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+const SessionContext = createContext<SessionContextState | undefined>(
+  undefined,
+);
 
 interface SessionProviderProps {
   children: ReactNode;
@@ -45,10 +103,15 @@ export function SessionProvider({ children }: SessionProviderProps) {
   const [searchParams] = useSearchParams();
   const { brandConfig } = useBrandConfig();
 
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(
+    () => readSessionStorage().sessionId,
+  );
+  const [sessionToken, setSessionToken] = useState<string | null>(
+    () => readSessionStorage().sessionToken,
+  );
   const [submissionId, setSubmissionId] = useState<string | null>(null);
-  const [sessionStatus, setSessionStatus] = useState<SessionStatus>('initialized');
+  const [sessionStatus, setSessionStatus] =
+    useState<SessionStatus>("initialized");
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [steps] = useState<StepData[]>([]);
@@ -59,38 +122,46 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
   const sessionServiceRef = useRef(new SessionService());
 
-  const sessionIdFromUrl = searchParams.get('session');
-  const tokenFromUrl = searchParams.get('token');
+  const sessionIdFromUrl = searchParams.get("session");
+  const tokenFromUrl = searchParams.get("token");
   const isMobileAccess = !!(sessionIdFromUrl && tokenFromUrl);
 
   // Handle incoming WebSocket events
   const handleWsMessage = useCallback((event: WebSocketEvent) => {
-    console.log('[SessionContext] Received WebSocket event:', event);
+    console.log("[SessionContext] Received WebSocket event:", event);
     setLastEvent(event);
 
     // updateSession broadcasts nest fields inside sessionData; flatten for uniform handling
     const sd = event.sessionData;
     const eventType = event.type || event.action;
-    const status = event.status ?? sd?.status as string | undefined;
-    const activeDevice = event.activeDevice ?? sd?.activeDevice as string | undefined;
-    const isMobile = event.isMobile ?? sd?.isMobile as boolean | undefined;
-    const currentStep = event.currentStep ?? sd?.currentStep as string | undefined;
-    const submissionId = event.submissionId ?? sd?.submissionId as string | undefined;
+    const status = event.status ?? (sd?.status as string | undefined);
+    const activeDevice =
+      event.activeDevice ?? (sd?.activeDevice as string | undefined);
+    const isMobile = event.isMobile ?? (sd?.isMobile as boolean | undefined);
+    const currentStep =
+      event.currentStep ?? (sd?.currentStep as string | undefined);
+    const submissionId =
+      event.submissionId ?? (sd?.submissionId as string | undefined);
 
     // Handle session updates
-    if (eventType === 'updatedSession' || eventType === 'sessionUpdated') {
-      console.log('[SessionContext] Session updated:', { isMobile, activeDevice, status, currentStep });
+    if (eventType === "updatedSession" || eventType === "sessionUpdated") {
+      console.log("[SessionContext] Session updated:", {
+        isMobile,
+        activeDevice,
+        status,
+        currentStep,
+      });
     }
 
     // Capture submissionId whenever the backend includes it in an event
-    if (submissionId && typeof submissionId === 'string') {
+    if (submissionId && typeof submissionId === "string") {
       setSubmissionId(submissionId);
     }
 
     // Handle completion broadcast from completeSession action
-    if (eventType === 'completedSession' || eventType === 'sessionCompleted') {
-      console.log('[SessionContext] Session completed broadcast received');
-      setSessionStatus('completed');
+    if (eventType === "completedSession" || eventType === "sessionCompleted") {
+      console.log("[SessionContext] Session completed broadcast received");
+      setSessionStatus("completed");
       return;
     }
 
@@ -102,9 +173,9 @@ export function SessionProvider({ children }: SessionProviderProps) {
     }
     // If isMobile flag is set to true, update device to mobile
     if (isMobile === true) {
-      console.log('[SessionContext] Session transferred to mobile device');
-      setActiveDevice('mobile');
-      setSessionStatus('active');
+      console.log("[SessionContext] Session transferred to mobile device");
+      setActiveDevice("mobile");
+      setSessionStatus("active");
     }
     if (currentStep) {
       setCurrentStep(currentStep);
@@ -116,6 +187,22 @@ export function SessionProvider({ children }: SessionProviderProps) {
     let cancelled = false;
 
     const init = async () => {
+      console.log("[SessionContext] Initializing session context");
+
+      // Determine whether we have credentials before attempting WebSocket
+      const stored = readSessionStorage();
+      const hasCredentials =
+        (isMobileAccess && !!sessionIdFromUrl && !!tokenFromUrl) ||
+        (!!stored.sessionId && !!stored.sessionToken);
+
+      if (!hasCredentials) {
+        console.log(
+          "[SessionContext] No session credentials available, skipping WebSocket connect",
+        );
+        if (!cancelled) setIsLoading(false);
+        return;
+      }
+
       try {
         const service = sessionServiceRef.current;
 
@@ -127,7 +214,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
           onMessage: (event) => {
             if (!cancelled) handleWsMessage(event);
           },
-          onError: (err) => console.error('WS error:', err),
+          onError: (err) => console.error("[SessionContext] WS error:", err),
           onClose: () => {
             if (!cancelled) setWsConnected(false);
           },
@@ -135,37 +222,50 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
         if (isMobileAccess && sessionIdFromUrl && tokenFromUrl) {
           // Mobile device — update existing session to transfer to mobile
-          const response = await service.updateSession(sessionIdFromUrl, tokenFromUrl, {
-            status: 'active',
-            isMobile: true,
-          });
+          const response = await service.updateSession(
+            sessionIdFromUrl,
+            tokenFromUrl,
+            {
+              status: "active",
+              isMobile: true,
+            },
+          );
+                  setIsLoading(false);
           if (!cancelled) {
             setSessionId(response.sessionId);
-            setSessionToken(response.token || response.sessionId);
+            setSessionToken(tokenFromUrl);
+            writeSessionStorage(response.sessionId, tokenFromUrl);
             if (response.submissionId) setSubmissionId(response.submissionId);
-            setActiveDevice('mobile');
-            setSessionStatus('active');
+            setActiveDevice("mobile");
+            setSessionStatus("active");
           }
         } else {
-          // Desktop — create new session
-          const domain = brandConfig.domain || window.location.hostname;
-          const response = await service.createSession(domain);
-          console.log('Session created:', response);
-          if (!cancelled) {
-            setSessionId(response.sessionId);
-            setSessionToken(response.token || response.sessionId);
-            if (response.submissionId) setSubmissionId(response.submissionId);
-            setActiveDevice('desktop');
-            setSessionStatus('initialized');
+          // Desktop — session is pre-populated from sessionStorage via lazy init.
+          const stored = readSessionStorage();
+          if (stored.sessionId && stored.sessionToken) {
+            console.log(
+              "[SessionContext] Resuming session from sessionStorage",
+            );
+            if (!cancelled) {
+              setActiveDevice("desktop");
+              setSessionStatus("initialized");
+            }
           }
+          // No session in storage — nothing to create; SessionGuard will show error page.
         }
       } catch (error) {
-        console.error('Error initializing session:', error);
+        console.error("[SessionContext] Error initializing session:", error);
         if (!cancelled) {
-          setError(error instanceof Error ? error.message : 'Failed to connect to session service');
+          setError(
+            error instanceof Error
+              ? error.message
+              : "Failed to connect to session service",
+          );
+          setIsLoading(false);
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        console.log("[SessionContext] Initialization complete");
+        setIsLoading(false);
       }
     };
 
@@ -173,38 +273,53 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
     return () => {
       cancelled = true;
+      console.log("[SessionContext] Disconnecting session service");
       sessionServiceRef.current.disconnect();
     };
   }, [isMobileAccess, sessionIdFromUrl, brandConfig.domain, handleWsMessage]);
 
   const transferToMobile = useCallback(async () => {
     if (!sessionId || !sessionToken) return;
-    const response = await sessionServiceRef.current.updateSession(sessionId, sessionToken, { isMobile: true });
+    const response = await sessionServiceRef.current.updateSession(
+      sessionId,
+      sessionToken,
+      { isMobile: true },
+    );
     setSessionToken(response.token || response.sessionId);
-    setActiveDevice('mobile');
-    setSessionStatus('active');
+    setActiveDevice("mobile");
+    setSessionStatus("active");
   }, [sessionId, sessionToken]);
 
   const transferToWeb = useCallback(async () => {
     if (!sessionId || !sessionToken) return;
-    const response = await sessionServiceRef.current.updateSession(sessionId, sessionToken, { isMobile: false });
+    const response = await sessionServiceRef.current.updateSession(
+      sessionId,
+      sessionToken,
+      { isMobile: false },
+    );
     setSessionToken(response.token || response.sessionId);
-    setActiveDevice('desktop');
-    setSessionStatus('active');
+    setActiveDevice("desktop");
+    setSessionStatus("active");
   }, [sessionId, sessionToken]);
 
-  const updateStep = useCallback(async (step: string) => {
-    if (!sessionId || !sessionToken) return;
-    await sessionServiceRef.current.updateSession(sessionId, sessionToken, { currentStep: step });
-    setCurrentStep(step);
-    setSessionStatus('in_progress');
-  }, [sessionId, sessionToken]);
+  const updateStep = useCallback(
+    async (step: string) => {
+      if (!sessionId || !sessionToken) return;
+      await sessionServiceRef.current.updateSession(sessionId, sessionToken, {
+        currentStep: step,
+      });
+      setCurrentStep(step);
+      setSessionStatus("in_progress");
+    },
+    [sessionId, sessionToken],
+  );
 
   const completeSession = useCallback(async () => {
     const id = sessionId ?? sessionIdFromUrl;
     if (!id) return;
     await sessionServiceRef.current.completeSession(id);
-    setSessionStatus('completed');
+    clearSessionStorage();
+    setSessionStatus("completed");
   }, [sessionId, sessionIdFromUrl]);
 
   const value: SessionContextState = {
@@ -217,12 +332,15 @@ export function SessionProvider({ children }: SessionProviderProps) {
     steps,
     isLoading,
     isMobileAccess,
-    brandName: brandConfig.brandName || '',
+    brandName: brandConfig.brandName || "",
     error,
     transferToMobile,
     transferToWeb,
     updateStep,
     completeSession,
+    writeSessionStorage,
+    readSessionStorage,
+    clearSessionStorage,
     lastEvent,
     wsConnected,
   };
@@ -238,7 +356,7 @@ export function useSession() {
   const context = useContext(SessionContext);
 
   if (context === undefined) {
-    throw new Error('useSession must be used within a SessionProvider');
+    throw new Error("useSession must be used within a SessionProvider");
   }
 
   return context;

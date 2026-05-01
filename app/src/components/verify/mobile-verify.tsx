@@ -139,7 +139,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 tenantId,
                 submissionId: submissionId ?? sessionId ?? '',
                 applicationId,
-                applicantId: Guid().toString(),
+                applicantId: crypto.randomUUID(),
                 submissionType: 'verify',
                 uploadSessionId: submissionId ?? sessionId ?? '',
                 selectedCountry: state.selectedCountry?.code ?? '',
@@ -147,7 +147,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 documents,
                 livenessScore: state.livenessScore?.toString() ?? undefined,                facialBiometricsToken: state.facialBiometricsToken ?? undefined,            };
 
-            const result = await service.createSubmission(tenantId, request);
+            const result = await service.createSubmission(tenantId, request, sessionToken ?? undefined);
             if (!result.isSuccessful) {
                 throw new Error(result.errorMessage ?? 'Submission failed');
             }
