@@ -34,13 +34,14 @@ export default abstract class BaseService {
   static async PostData(
     endpointUrl: string,
     body: any,
-    _httpReqObj?: Omit<IRequest, "method" | "body">
+    _httpReqObj?: Omit<IRequest, "method" | "body">,
+    token?: string
   ): Promise<any> {
     const options = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.token}`,
+        Authorization: `Bearer ${token ?? this.token}`,
       },
       body: JSON.stringify(body),
     };
