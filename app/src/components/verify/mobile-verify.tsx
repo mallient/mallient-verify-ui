@@ -87,7 +87,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
         try {
             const tenantId = organization?.organizationId ?? '';
             const applicationId = organization?.applicationId ?? '';
-            const service = new SubmissionService(sessionToken ?? '');
+            const service = new SubmissionService('Authorization', `${sessionStorage.getItem('mallient_session_token') ?? ''}`);
 
             // Build the list of document types that have captured images
             const capturedDocs: Array<{ documentType: string; imageData: string }> = [
@@ -104,6 +104,7 @@ export const MobileVerify = ({ onComplete, onCancel }: MobileVerifyProps = {}) =
                 applicationId,
                 submissionId ?? sessionId ?? '',
                 capturedDocs.map((d) => d.documentType),
+                sessionToken ?? undefined,
             );
 
             console.log('[Submit] Received presigned URLs for:', presignedUrls);

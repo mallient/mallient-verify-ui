@@ -1,4 +1,4 @@
-import BaseService from "./baseService";
+import BaseService, { type AuthHeader } from "./baseService";
 import type {
   CreateSubmissionRequest,
   GenerateUploadUrlsRequest,
@@ -32,6 +32,7 @@ export class SubmissionService extends BaseService {
     applicationId: string,
     sessionId: string,
     documentTypes: string[],
+    token?: string,
   ): Promise<PresignedUploadUrl[]> {
     const body: GenerateUploadUrlsRequest = {
       tenantId,
@@ -43,9 +44,14 @@ export class SubmissionService extends BaseService {
         fileName: `${documentType}.jpg`,
       })),
     };
+    const authOverride: AuthHeader | undefined = token
+      ? { key: "Authorization", value: `Bearer ${token}` }
+      : undefined;
     const response: IBaseResult<GenerateUploadUrlsResponse['result']> = await BaseService.PostData(
       `${API_BASE}/organizations/v1/tenant/${encodeURIComponent(tenantId)}/submissions/upload-urls`,
       body,
+      undefined,
+      authOverride,
     );
     if (!response.isSuccessful) {
       throw new Error(
@@ -86,13 +92,11 @@ export class SubmissionService extends BaseService {
   public async createSubmission(
     tenantId: string,
     request: CreateSubmissionRequest,
-    token?: string,
   ): Promise<SubmissionResponse> {
     const response: SubmissionResponse = await BaseService.PostData(
       `${API_BASE}/organizations/v1/tenant/${encodeURIComponent(tenantId)}/submissions`,
       request,
       undefined,
-      token,
     );
     return response;
   }
