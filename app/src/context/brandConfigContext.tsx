@@ -27,7 +27,7 @@ export function BrandConfigProvider({ children }: BrandConfigProviderProps) {
       setIsLoading(true);
       setError(null);
       
-      const brandingService = new BrandingService('');
+      const brandingService = new BrandingService();
       const response = await brandingService.getOrganizationBranding(window.location.hostname);
       console.log('Fetched brand configuration:', response);
       setOrganization(response);

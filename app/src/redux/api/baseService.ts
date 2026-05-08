@@ -3,11 +3,16 @@
 
 import type { IRequest } from "../types/IRequest";
 
-export default abstract class BaseService {
-  private static token: string;
+export interface AuthHeader {
+  key: string;
+  value: string;
+}
 
-  constructor(_token: string) {
-    BaseService.token = _token;
+export default abstract class BaseService {
+  private static authHeader: AuthHeader;
+
+  constructor(key = "Authorization", value = "") {
+    BaseService.authHeader = { key, value };
   }
   static async GetData(
     endpointUrl: string,
@@ -17,7 +22,7 @@ export default abstract class BaseService {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.token}`,
+        [this.authHeader.key]: this.authHeader.value,
       },
     };
 
@@ -35,13 +40,14 @@ export default abstract class BaseService {
     endpointUrl: string,
     body: any,
     _httpReqObj?: Omit<IRequest, "method" | "body">,
-    token?: string
+    authOverride?: AuthHeader
   ): Promise<any> {
+    const auth = authOverride ?? this.authHeader;
     const options = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token ?? this.token}`,
+        [auth.key]: auth.value,
       },
       body: JSON.stringify(body),
     };
@@ -69,7 +75,7 @@ export default abstract class BaseService {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.token}`,
+        [this.authHeader.key]: this.authHeader.value,
       },
       body: JSON.stringify(body),
     };
@@ -92,7 +98,7 @@ export default abstract class BaseService {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.token}`,
+        [this.authHeader.key]: this.authHeader.value,
       },
     };
 
@@ -115,7 +121,7 @@ export default abstract class BaseService {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.token}`,
+        [this.authHeader.key]: this.authHeader.value,
       },
       body: JSON.stringify(body),
     };
